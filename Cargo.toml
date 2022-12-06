@@ -9,5 +9,7 @@ edition = "2021"
 anyhow = "1.0.66"
 clap = { version = "4.0.29", features = ["derive"] }
 miette = { version = "5.5.0", features = ["fancy"] }
+peekmore = "1.0.0"
+rug = "1.18.0"
 rustyline = "10.0.0"
 thiserror = "1.0.37"
