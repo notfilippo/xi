@@ -5,8 +5,8 @@ use peekmore::{PeekMore, PeekMoreIterator};
 use rug::{Assign, Float, Integer};
 
 use crate::{
-    error::{MalformedNumber, UnexpectedCharacter, UnterminatedSequence},
-    token::{Span, Token, TokenKind},
+    error::{MalformedFloatPrecision, MalformedNumber, UnexpectedCharacter, UnterminatedSequence},
+    token::{Literal, Span, Token, TokenKind},
 };
 
 pub struct Lexer<'a> {
@@ -17,7 +17,7 @@ pub struct Lexer<'a> {
     current: usize,
 }
 
-const FLOAT_PRECISION: u32 = 32;
+const DEFAULT_FLOAT_PRECISION: u32 = 64;
 
 impl<'a> Lexer<'a> {
     pub fn new(source: &'a str) -> Self {
@@ -34,8 +34,8 @@ impl<'a> Lexer<'a> {
         Span::new(self.start, self.current - self.start)
     }
 
-    fn emit(&mut self, kind: TokenKind) -> Result<()> {
-        self.tokens.push(Token::new(kind, self.span()));
+    fn emit(&mut self, kind: TokenKind, literal: Option<Literal>) -> Result<()> {
+        self.tokens.push(Token::new(kind, literal, self.span()));
         Ok(())
     }
 
@@ -64,7 +64,7 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    fn peek_and_match(&mut self, c: char) -> bool {
+    fn matches(&mut self, c: char) -> bool {
         match self.peek() {
             None => false,
             Some(&other) => {
@@ -98,29 +98,44 @@ impl<'a> Lexer<'a> {
         if !self.peek().is_none() {
             self.next(); // "
             let literal = self.source[self.start + 1..self.current - 1].to_string();
-            self.emit(TokenKind::String(literal))?;
+            self.emit(TokenKind::String, Some(Literal::String(literal)))?;
             Ok(())
         } else {
             Err(UnterminatedSequence {
-                src: self.source.to_string(),
                 span: self.span().into(),
+                src: self.source.to_string(),
             }
             .into())
         }
     }
 
     fn scan_number_as_float(&mut self) -> Result<()> {
-        let literal = self.source[self.start..self.current].to_string();
+        let end = self.current;
+        let mut precision = DEFAULT_FLOAT_PRECISION;
+
+        if self.peek_is(|c| c == '_') {
+            self.next(); // _
+            while self.peek_is(|c| c.is_ascii_digit()) {
+                self.next();
+            }
+            let literal = self.source[end + 1..self.current].to_string();
+            precision = literal.parse().map_err(|_| MalformedFloatPrecision {
+                span: Span::new(end, 1).into(),
+                src: self.source.to_string(),
+            })?;
+        }
+
+        let literal = self.source[self.start..end].to_string();
         let parse = Float::parse(literal);
 
         if let Ok(src) = parse {
-            let mut float = Float::new(FLOAT_PRECISION);
+            let mut float = Float::new(precision);
             float.assign(src);
-            self.emit(TokenKind::Float(float))
+            self.emit(TokenKind::Float, Some(Literal::Float(float)))
         } else {
             Err(MalformedNumber {
-                src: self.source.to_string(),
                 span: self.span().into(),
+                src: self.source.to_string(),
             }
             .into())
         }
@@ -133,44 +148,13 @@ impl<'a> Lexer<'a> {
         if let Ok(src) = parse {
             let mut integer = Integer::new();
             integer.assign(src);
-            self.emit(TokenKind::Integer(integer))
+            self.emit(TokenKind::Integer, Some(Literal::Integer(integer)))
         } else {
             Err(MalformedNumber {
-                src: self.source.to_string(),
                 span: self.span().into(),
+                src: self.source.to_string(),
             }
             .into())
-        }
-    }
-
-    fn scan_identifier(&mut self) -> Result<()> {
-        while let Some(c) = self.peek() {
-            if !c.is_ascii_alphanumeric() {
-                break;
-            }
-            self.next();
-        }
-
-        let literal = &self.source[self.start..self.current];
-
-        match literal {
-            "and" => self.emit(TokenKind::And),
-            "class" => self.emit(TokenKind::Class),
-            "else" => self.emit(TokenKind::Else),
-            "false" => self.emit(TokenKind::False),
-            "fn" => self.emit(TokenKind::Fn),
-            "for" => self.emit(TokenKind::For),
-            "if" => self.emit(TokenKind::If),
-            "nil" => self.emit(TokenKind::Nil),
-            "or" => self.emit(TokenKind::Or),
-            "print" => self.emit(TokenKind::Print),
-            "return" => self.emit(TokenKind::Return),
-            "super" => self.emit(TokenKind::Super),
-            "this" => self.emit(TokenKind::This),
-            "true" => self.emit(TokenKind::True),
-            "var" => self.emit(TokenKind::Var),
-            "while" => self.emit(TokenKind::While),
-            other => self.emit(TokenKind::Identifier(other.to_string())),
         }
     }
 
@@ -222,52 +206,88 @@ impl<'a> Lexer<'a> {
 
                 return self.scan_number_as_float();
             }
+        } else if self.peek_is(|c| c == '_') {
+            return self.scan_number_as_float();
         }
 
         return self.scan_number_as_integer();
     }
 
+    fn scan_identifier(&mut self) -> Result<()> {
+        while let Some(c) = self.peek() {
+            if !c.is_ascii_alphanumeric() {
+                break;
+            }
+            self.next();
+        }
+
+        let literal = &self.source[self.start..self.current];
+
+        match literal {
+            "and" => self.emit(TokenKind::And, None),
+            "class" => self.emit(TokenKind::Class, None),
+            "else" => self.emit(TokenKind::Else, None),
+            "false" => self.emit(TokenKind::False, None),
+            "fn" => self.emit(TokenKind::Fn, None),
+            "for" => self.emit(TokenKind::For, None),
+            "if" => self.emit(TokenKind::If, None),
+            "nil" => self.emit(TokenKind::Nil, None),
+            "or" => self.emit(TokenKind::Or, None),
+            "print" => self.emit(TokenKind::Print, None),
+            "return" => self.emit(TokenKind::Return, None),
+            "super" => self.emit(TokenKind::Super, None),
+            "this" => self.emit(TokenKind::This, None),
+            "true" => self.emit(TokenKind::True, None),
+            "var" => self.emit(TokenKind::Var, None),
+            "while" => self.emit(TokenKind::While, None),
+            other => self.emit(
+                TokenKind::Identifier,
+                Some(Literal::Identifier(other.to_string())),
+            ),
+        }
+    }
+
     fn scan_token(&mut self, c: char) -> Result<()> {
         match c {
-            '(' => self.emit(TokenKind::LeftParen),
-            ')' => self.emit(TokenKind::RightParen),
-            '{' => self.emit(TokenKind::LeftBrace),
-            '}' => self.emit(TokenKind::RightBrace),
-            ',' => self.emit(TokenKind::Comma),
-            '.' => self.emit(TokenKind::Dot),
-            '-' => self.emit(TokenKind::Minus),
-            '+' => self.emit(TokenKind::Plus),
-            ';' => self.emit(TokenKind::Semicolon),
-            '*' => self.emit(TokenKind::Star),
-            '/' => self.emit(TokenKind::Slash),
-            '|' => self.emit(TokenKind::Pipe),
+            '(' => self.emit(TokenKind::LeftParen, None),
+            ')' => self.emit(TokenKind::RightParen, None),
+            '{' => self.emit(TokenKind::LeftBrace, None),
+            '}' => self.emit(TokenKind::RightBrace, None),
+            ',' => self.emit(TokenKind::Comma, None),
+            '.' => self.emit(TokenKind::Dot, None),
+            '-' => self.emit(TokenKind::Minus, None),
+            '+' => self.emit(TokenKind::Plus, None),
+            ';' => self.emit(TokenKind::Semicolon, None),
+            '*' => self.emit(TokenKind::Star, None),
+            '/' => self.emit(TokenKind::Slash, None),
+            '|' => self.emit(TokenKind::Pipe, None),
             '"' => self.scan_string(),
             '!' => {
-                if self.peek_and_match('=') {
-                    self.emit(TokenKind::BangEqual)
+                if self.matches('=') {
+                    self.emit(TokenKind::BangEqual, None)
                 } else {
-                    self.emit(TokenKind::Bang)
+                    self.emit(TokenKind::Bang, None)
                 }
             }
             '=' => {
-                if self.peek_and_match('=') {
-                    self.emit(TokenKind::EqualEqual)
+                if self.matches('=') {
+                    self.emit(TokenKind::EqualEqual, None)
                 } else {
-                    self.emit(TokenKind::Equal)
+                    self.emit(TokenKind::Equal, None)
                 }
             }
             '>' => {
-                if self.peek_and_match('=') {
-                    self.emit(TokenKind::GreaterEqual)
+                if self.matches('=') {
+                    self.emit(TokenKind::GreaterEqual, None)
                 } else {
-                    self.emit(TokenKind::Greater)
+                    self.emit(TokenKind::Greater, None)
                 }
             }
             '<' => {
-                if self.peek_and_match('=') {
-                    self.emit(TokenKind::LessEqual)
+                if self.matches('=') {
+                    self.emit(TokenKind::LessEqual, None)
                 } else {
-                    self.emit(TokenKind::Less)
+                    self.emit(TokenKind::Less, None)
                 }
             }
             '#' => {
@@ -287,8 +307,8 @@ impl<'a> Lexer<'a> {
                     self.scan_identifier()
                 } else {
                     Err(UnexpectedCharacter {
-                        src: self.source.to_string(),
                         span: self.span().into(),
+                        src: self.source.to_string(),
                     }
                     .into())
                 }
@@ -301,8 +321,6 @@ impl<'a> Lexer<'a> {
             self.scan_token(c)?;
             self.start = self.current;
         }
-
-        self.emit(TokenKind::Eof)?;
 
         Ok(&self.tokens)
     }

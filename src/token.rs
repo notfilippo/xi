@@ -1,8 +1,6 @@
-use std::rc::Rc;
-
 use miette::SourceSpan;
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone, Copy)]
 pub struct Span {
     offset: usize,
     length: usize,
@@ -28,27 +26,32 @@ impl Into<SourceSpan> for Span {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
+pub enum Literal {
+    Identifier(String),
+    String(String),
+    Integer(rug::Integer),
+    Float(rug::Float),
+}
+
+#[derive(Debug, Clone)]
 pub struct Token {
-    kind: TokenKind,
-    span: Span,
+    pub kind: TokenKind,
+    pub literal: Option<Literal>,
+    pub span: Span,
 }
 
 impl Token {
-    pub fn new(kind: TokenKind, span: Span) -> Self {
-        Self { kind, span }
-    }
-
-    pub fn kind(&self) -> &TokenKind {
-        &self.kind
-    }
-
-    pub fn span(&self) -> &Span {
-        &self.span
+    pub fn new(kind: TokenKind, literal: Option<Literal>, span: Span) -> Self {
+        Self {
+            kind,
+            literal,
+            span,
+        }
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, PartialOrd, Clone, Copy)]
 pub enum TokenKind {
     // Single-character tokens.
     LeftParen,
@@ -75,10 +78,10 @@ pub enum TokenKind {
     LessEqual,
 
     // Literals.
-    Identifier(String),
-    String(String),
-    Integer(rug::Integer),
-    Float(rug::Float),
+    Identifier,
+    String,
+    Integer,
+    Float,
 
     // Keywords.
     And,
@@ -97,6 +100,4 @@ pub enum TokenKind {
     True,
     Var,
     While,
-
-    Eof,
 }
