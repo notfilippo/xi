@@ -52,9 +52,9 @@ impl<'a> Lexer<'a> {
 
     fn peek_nth(&mut self, n: usize) -> Option<char> {
         self.chars.advance_cursor_by(n);
-        let result = self.chars.peek().map(|&a| a);
+        let result = self.chars.peek().copied();
         self.chars.reset_cursor();
-        return result;
+        result
     }
 
     fn peek_nth_is(&mut self, n: usize, f: fn(char) -> bool) -> bool {
@@ -95,7 +95,7 @@ impl<'a> Lexer<'a> {
             };
         }
 
-        if !self.peek().is_none() {
+        if self.peek().is_some() {
             self.next(); // "
             let literal = self.source[self.start + 1..self.current - 1].to_string();
             self.emit(TokenKind::String, Some(Literal::String(literal)))?;
@@ -175,10 +175,10 @@ impl<'a> Lexer<'a> {
                 }
 
                 if self.peek_is(|c| c == 'e') {
-                    if self.peek_nth_is(1, |c| c == '+' || c == '-') {
-                        if self.peek_nth_is(2, |c| c.is_ascii_digit()) {
-                            self.next(); // e
-                        }
+                    if self.peek_nth_is(1, |c| c == '+' || c == '-')
+                        && self.peek_nth_is(2, |c| c.is_ascii_digit())
+                    {
+                        self.next(); // e
                     }
 
                     if self.peek_nth_is(1, |c| c.is_ascii_digit()) {
@@ -192,10 +192,10 @@ impl<'a> Lexer<'a> {
                 return self.scan_number_as_float();
             }
         } else if self.peek_is(|c| c == 'e') {
-            if self.peek_nth_is(1, |c| c == '+' || c == '-') {
-                if self.peek_nth_is(2, |c| c.is_ascii_digit()) {
-                    self.next(); // e
-                }
+            if self.peek_nth_is(1, |c| c == '+' || c == '-')
+                && self.peek_nth_is(2, |c| c.is_ascii_digit())
+            {
+                self.next(); // e
             }
 
             if self.peek_nth_is(1, |c| c.is_ascii_digit()) {
@@ -210,7 +210,7 @@ impl<'a> Lexer<'a> {
             return self.scan_number_as_float();
         }
 
-        return self.scan_number_as_integer();
+        self.scan_number_as_integer()
     }
 
     fn scan_identifier(&mut self) -> Result<()> {
@@ -238,7 +238,7 @@ impl<'a> Lexer<'a> {
             "super" => self.emit(TokenKind::Super, None),
             "this" => self.emit(TokenKind::This, None),
             "true" => self.emit(TokenKind::True, None),
-            "var" => self.emit(TokenKind::Var, None),
+            "let" => self.emit(TokenKind::Let, None),
             "while" => self.emit(TokenKind::While, None),
             other => self.emit(
                 TokenKind::Identifier,
@@ -299,6 +299,7 @@ impl<'a> Lexer<'a> {
                 }
                 Ok(())
             }
+            // '\n' => self.emit(TokenKind::Semicolon, None),
             ' ' | '\n' | '\r' | '\t' => Ok(()), // skip
             c => {
                 if c.is_ascii_digit() {

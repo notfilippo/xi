@@ -1,8 +1,6 @@
 use miette::{Diagnostic, SourceSpan};
 use thiserror::Error;
 
-use crate::token::Token;
-
 #[derive(Error, Debug, Diagnostic)]
 #[error("unexpected character")]
 #[diagnostic(code(ix::lexer::unexpected_char))]
@@ -52,7 +50,7 @@ pub struct UnexpectedToken {
     #[source_code]
     pub src: String,
     #[help]
-    pub help: String
+    pub help: String,
 }
 
 #[derive(Error, Debug, Diagnostic)]
@@ -79,6 +77,26 @@ pub struct ExpectedToken {
 #[error("unsupported operation")]
 #[diagnostic(code(ix::interpreter::unsupported_operation))]
 pub struct UnsupportedOperation {
+    #[label("here")]
+    pub span: SourceSpan,
+    #[source_code]
+    pub src: String,
+}
+
+#[derive(Error, Debug, Diagnostic)]
+#[error("undefined value")]
+#[diagnostic(code(ix::env::undefined_value))]
+pub struct UndefinedValue {
+    #[label("here")]
+    pub span: SourceSpan,
+    #[source_code]
+    pub src: String,
+}
+
+#[derive(Error, Debug, Diagnostic)]
+#[error("invalid assignment target")]
+#[diagnostic(code(ix::interpreter::invalid_assignment_target))]
+pub struct InvalidAssignmentTarget {
     #[label("here")]
     pub span: SourceSpan,
     #[source_code]

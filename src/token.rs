@@ -2,8 +2,8 @@ use miette::SourceSpan;
 
 #[derive(Default, Debug, Clone, Copy)]
 pub struct Span {
-    offset: usize,
-    length: usize,
+    pub offset: usize,
+    pub length: usize,
 }
 
 impl Span {
@@ -12,21 +12,16 @@ impl Span {
     }
 
     pub fn new_range(start: usize, end: usize) -> Self {
-        Self { offset: start, length: end - start }
-    }
-
-    pub fn offset(&self) -> usize {
-        self.offset
-    }
-
-    pub fn len(&self) -> usize {
-        self.length
+        Self {
+            offset: start,
+            length: end - start,
+        }
     }
 }
 
-impl Into<SourceSpan> for Span {
-    fn into(self) -> SourceSpan {
-        SourceSpan::new(self.offset.into(), self.length.into())
+impl From<Span> for SourceSpan {
+    fn from(val: Span) -> Self {
+        SourceSpan::new(val.offset.into(), val.length.into())
     }
 }
 
@@ -102,6 +97,6 @@ pub enum TokenKind {
     Super,
     This,
     True,
-    Var,
+    Let,
     While,
 }

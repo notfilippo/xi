@@ -1,26 +1,26 @@
+mod env;
 mod expr;
 mod interpreter;
 mod lexer;
 mod parser;
-#[allow(dead_code)]
 mod report;
 mod token;
 mod value;
 
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{Path, PathBuf}, cell::RefCell, rc::Rc,
 };
 
 use anyhow::Context;
 use clap::Parser as CliParser;
-use expr::Visitor;
+use env::Env;
 use interpreter::Interpreter;
-use miette::{Result, SourceSpan};
+use miette::Result;
 use rustyline::{error::ReadlineError, DefaultEditor};
 
+use crate::lexer::Lexer;
 use crate::parser::Parser;
-use crate::{lexer::Lexer, report::ExpectedToken};
 
 #[derive(CliParser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -32,30 +32,28 @@ struct Cli {
 
 const PROMPT: &str = "ix >> ";
 
-fn run(source: String) -> Result<()> {
+fn run(source: String, env: &Rc<RefCell<Env>>) -> Result<()> {
     let mut lexer = Lexer::new(&source);
     let tokens = lexer.scan_tokens()?;
-    print!("{:?}\n\n", tokens);
     let mut parser = Parser::new(&source, tokens);
-    let expr = parser.scan_exprs()?;
-    print!("{:?}\n\n", expr);
+    let statements = parser.parse()?;
     let mut interpreter = Interpreter::new(&source);
-    let value = interpreter.visit_expr(&expr).map_err(|_| ExpectedToken {
-        span: SourceSpan::new(0.into(), 1.into()),
-        src: source,
-    })?;
-    println!("{}", value);
+
+    println!("{:?}", statements);
+    println!("{}", interpreter.interpret(env, &statements)?);
+
     Ok(())
 }
 
 fn repl() -> anyhow::Result<()> {
     let mut rl = DefaultEditor::new()?;
     rl.load_history("history.txt").ok();
+    let env = Rc::new(RefCell::<Env>::default());
     loop {
         let result = match rl.readline(PROMPT) {
             Ok(line) => {
                 rl.add_history_entry(line.as_str())?;
-                run(line)
+                run(line, &env)
             }
             Err(ReadlineError::Interrupted) => {
                 println!("CTRL-C");
@@ -78,7 +76,7 @@ fn repl() -> anyhow::Result<()> {
 
 fn file(path: &Path) -> anyhow::Result<()> {
     let source = fs::read_to_string(path)?;
-    let result = run(source);
+    let result = run(source, &Rc::new(RefCell::<Env>::default()));
     if let Err(err) = result {
         println!("{:?}", err);
     }
@@ -87,7 +85,7 @@ fn file(path: &Path) -> anyhow::Result<()> {
 }
 
 fn immediate(code: String) -> anyhow::Result<()> {
-    let result = run(code);
+    let result = run(code, &Rc::new(RefCell::<Env>::default()));
     if let Err(err) = result {
         println!("{:?}", err);
     }

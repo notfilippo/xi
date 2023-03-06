@@ -4,7 +4,8 @@ use std::{
 };
 
 use miette::Report;
-use rug::{Float, Integer};
+use rug::{integer::TryFromIntegerError, Float, Integer};
+use thiserror::Error;
 
 use crate::{
     report::UnsupportedOperation,
@@ -19,8 +20,12 @@ pub enum Value {
     Literal(Literal),
 }
 
-pub enum Error {
+#[derive(Error, Debug)]
+pub enum ValueError {
+    #[error("unsupported operation")]
     UnsupportedOperation,
+    #[error("data store disconnected")]
+    IntegerConversionError(#[from] TryFromIntegerError),
 }
 
 impl Value {
@@ -28,11 +33,7 @@ impl Value {
     // - false and nil are falsey
     // - everything else is truthy
     pub fn is_truthy(&self) -> bool {
-        match self {
-            Value::False => false,
-            Value::Nil => false,
-            _ => true,
-        }
+        !matches!(self, Value::False | Value::Nil)
     }
 }
 
@@ -45,30 +46,30 @@ impl Not for Value {
 }
 
 impl Neg for Literal {
-    type Output = Result<Self, Error>;
+    type Output = Result<Self, ValueError>;
 
     fn neg(self) -> Self::Output {
         match self {
-            Self::Integer(i) => Ok(i.clone().neg().into()),
-            Self::Float(f) => Ok(f.clone().neg().into()),
-            _ => Err(Error::UnsupportedOperation),
+            Self::Integer(i) => Ok(i.neg().into()),
+            Self::Float(f) => Ok(f.neg().into()),
+            _ => Err(ValueError::UnsupportedOperation),
         }
     }
 }
 
 impl Neg for Value {
-    type Output = Result<Self, Error>;
+    type Output = Result<Self, ValueError>;
 
     fn neg(self) -> Self::Output {
         match self {
             Self::Literal(literal) => Ok(literal.neg()?.into()),
-            _ => Err(Error::UnsupportedOperation),
+            _ => Err(ValueError::UnsupportedOperation),
         }
     }
 }
 
 impl Add for Literal {
-    type Output = Result<Self, Error>;
+    type Output = Result<Self, ValueError>;
 
     fn add(self, rhs: Self) -> Self::Output {
         match (self, rhs) {
@@ -76,24 +77,28 @@ impl Add for Literal {
             (Self::Integer(lhs), Self::Float(rhs)) => Ok(lhs.add(rhs).into()),
             (Self::Float(lhs), Self::Integer(rhs)) => Ok(lhs.add(rhs).into()),
             (Self::Integer(lhs), Self::Integer(rhs)) => Ok(lhs.add(rhs).into()),
-            _ => Err(Error::UnsupportedOperation),
+            (Self::String(lhs), rhs) => Ok(format!("{}{}", lhs, rhs).into()),
+            (lhs, Self::String(rhs)) => Ok(format!("{}{}", lhs, rhs).into()),
+            _ => Err(ValueError::UnsupportedOperation),
         }
     }
 }
 
 impl Add for Value {
-    type Output = Result<Self, Error>;
+    type Output = Result<Self, ValueError>;
 
     fn add(self, rhs: Self) -> Self::Output {
         match (self, rhs) {
             (Self::Literal(lhs), Self::Literal(rhs)) => Ok(lhs.add(rhs)?.into()),
-            _ => Err(Error::UnsupportedOperation),
+            (Self::Literal(Literal::String(lhs)), rhs) => Ok(format!("{}{}", lhs, rhs).into()),
+            (lhs, Self::Literal(Literal::String(rhs))) => Ok(format!("{}{}", lhs, rhs).into()),
+            _ => Err(ValueError::UnsupportedOperation),
         }
     }
 }
 
 impl Sub for Literal {
-    type Output = Result<Self, Error>;
+    type Output = Result<Self, ValueError>;
 
     fn sub(self, rhs: Self) -> Self::Output {
         match (self, rhs) {
@@ -101,24 +106,24 @@ impl Sub for Literal {
             (Self::Integer(lhs), Self::Float(rhs)) => Ok(lhs.sub(rhs).into()),
             (Self::Float(lhs), Self::Integer(rhs)) => Ok(lhs.sub(rhs).into()),
             (Self::Integer(lhs), Self::Integer(rhs)) => Ok(lhs.sub(rhs).into()),
-            _ => Err(Error::UnsupportedOperation),
+            _ => Err(ValueError::UnsupportedOperation),
         }
     }
 }
 
 impl Sub for Value {
-    type Output = Result<Self, Error>;
+    type Output = Result<Self, ValueError>;
 
     fn sub(self, rhs: Self) -> Self::Output {
         match (self, rhs) {
             (Self::Literal(lhs), Self::Literal(rhs)) => Ok(lhs.sub(rhs)?.into()),
-            _ => Err(Error::UnsupportedOperation),
+            _ => Err(ValueError::UnsupportedOperation),
         }
     }
 }
 
 impl Div for Literal {
-    type Output = Result<Self, Error>;
+    type Output = Result<Self, ValueError>;
 
     fn div(self, rhs: Self) -> Self::Output {
         match (self, rhs) {
@@ -126,24 +131,24 @@ impl Div for Literal {
             (Self::Integer(lhs), Self::Float(rhs)) => Ok(lhs.div(rhs).into()),
             (Self::Float(lhs), Self::Integer(rhs)) => Ok(lhs.div(rhs).into()),
             (Self::Integer(lhs), Self::Integer(rhs)) => Ok(lhs.div(rhs).into()),
-            _ => Err(Error::UnsupportedOperation),
+            _ => Err(ValueError::UnsupportedOperation),
         }
     }
 }
 
 impl Div for Value {
-    type Output = Result<Self, Error>;
+    type Output = Result<Self, ValueError>;
 
     fn div(self, rhs: Self) -> Self::Output {
         match (self, rhs) {
             (Self::Literal(lhs), Self::Literal(rhs)) => Ok(lhs.div(rhs)?.into()),
-            _ => Err(Error::UnsupportedOperation),
+            _ => Err(ValueError::UnsupportedOperation),
         }
     }
 }
 
 impl Mul for Literal {
-    type Output = Result<Self, Error>;
+    type Output = Result<Self, ValueError>;
 
     fn mul(self, rhs: Self) -> Self::Output {
         match (self, rhs) {
@@ -151,18 +156,20 @@ impl Mul for Literal {
             (Self::Integer(lhs), Self::Float(rhs)) => Ok(lhs.mul(rhs).into()),
             (Self::Float(lhs), Self::Integer(rhs)) => Ok(lhs.mul(rhs).into()),
             (Self::Integer(lhs), Self::Integer(rhs)) => Ok(lhs.mul(rhs).into()),
-            _ => Err(Error::UnsupportedOperation),
+            (Self::String(lhs), Self::Integer(rhs)) => Ok(lhs.repeat(rhs.try_into()?).into()),
+            (Self::Integer(lhs), Self::String(rhs)) => Ok(rhs.repeat(lhs.try_into()?).into()),
+            _ => Err(ValueError::UnsupportedOperation),
         }
     }
 }
 
 impl Mul for Value {
-    type Output = Result<Self, Error>;
+    type Output = Result<Self, ValueError>;
 
     fn mul(self, rhs: Self) -> Self::Output {
         match (self, rhs) {
             (Self::Literal(lhs), Self::Literal(rhs)) => Ok(lhs.mul(rhs)?.into()),
-            _ => Err(Error::UnsupportedOperation),
+            _ => Err(ValueError::UnsupportedOperation),
         }
     }
 }
@@ -255,6 +262,18 @@ impl From<&str> for Value {
     }
 }
 
+impl From<String> for Literal {
+    fn from(string: String) -> Self {
+        Self::String(string)
+    }
+}
+
+impl From<String> for Value {
+    fn from(string: String) -> Self {
+        Self::Literal(string.into())
+    }
+}
+
 impl From<bool> for Value {
     fn from(value: bool) -> Self {
         match value {
@@ -264,11 +283,16 @@ impl From<bool> for Value {
     }
 }
 
-impl Error {
+impl ValueError {
     pub fn into_report(self, span: &Span, source: &str) -> Report {
         match self {
-            Error::UnsupportedOperation => UnsupportedOperation {
-                span: span.clone().into(),
+            ValueError::UnsupportedOperation => UnsupportedOperation {
+                span: (*span).into(),
+                src: source.to_string(),
+            }
+            .into(),
+            ValueError::IntegerConversionError(_) => UnsupportedOperation {
+                span: (*span).into(),
                 src: source.to_string(),
             }
             .into(),
