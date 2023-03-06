@@ -1,9 +1,10 @@
 use miette::Result;
 
 use crate::{
-    error::{UnexpectedEof, UnexpectedToken},
-    expr::{Expr},
-    token::{Span, Token, TokenKind}, value::Value,
+    expr::Expr,
+    report::{UnexpectedEof, UnexpectedToken},
+    token::{Span, Token, TokenKind},
+    value::Value,
 };
 
 pub struct Parser<'a> {
@@ -48,26 +49,27 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn previous(&mut self) -> Option<&Token> {
-        self.tokens.get(self.current - 1)
+    fn previous(&mut self) -> &Token {
+        &self.tokens[self.current - 1]
     }
 
     fn consume(&mut self, kind: TokenKind) -> Result<()> {
         match self.peek() {
             Some(token) => {
-                if token.kind != kind {
+                if token.kind == kind {
                     self.next();
                     Ok(())
                 } else {
                     Err(UnexpectedToken {
                         span: token.span.into(),
+                        help: format!("wanted {:?}, found {:?}", kind, token.kind),
                         src: self.source.to_string(),
                     }
                     .into())
                 }
             }
             None => Err(UnexpectedEof {
-                span: Span::new(self.current, 1).into(),
+                span: self.previous().span.into(),
                 src: self.source.to_string(),
             }
             .into()),
@@ -75,16 +77,25 @@ impl<'a> Parser<'a> {
     }
 
     fn primary(&mut self) -> Result<Box<Expr>> {
+        let start = self.current;
+
         if self.next_if(|k| k == TokenKind::False).is_some() {
             return Ok(Box::new(Expr::Literal {
                 value: Value::False,
+                span: Span::new_range(start, self.current),
             }));
         }
         if self.next_if(|k| k == TokenKind::True).is_some() {
-            return Ok(Box::new(Expr::Literal { value: Value::True }));
+            return Ok(Box::new(Expr::Literal {
+                value: Value::True,
+                span: Span::new_range(start, self.current),
+            }));
         }
         if self.next_if(|k| k == TokenKind::Nil).is_some() {
-            return Ok(Box::new(Expr::Literal { value: Value::Nil }));
+            return Ok(Box::new(Expr::Literal {
+                value: Value::Nil,
+                span: Span::new_range(start, self.current),
+            }));
         }
 
         if let Some(token) =
@@ -92,23 +103,28 @@ impl<'a> Parser<'a> {
         {
             return Ok(Box::new(Expr::Literal {
                 value: token.literal.clone().unwrap().into(),
+                span: Span::new_range(start, self.current),
             }));
         }
 
         if self.next_if(|k| k == TokenKind::LeftParen).is_some() {
             let expr = self.expression()?;
             self.consume(TokenKind::RightParen)?;
-            return Ok(Box::new(Expr::Grouping { expr }));
+            return Ok(Box::new(Expr::Grouping {
+                expr,
+                span: Span::new_range(start, self.current),
+            }));
         }
 
         match self.peek() {
             Some(token) => Err(UnexpectedToken {
                 span: token.span.into(),
+                help: format!("wanted primary expr, found {:?}", token.kind),
                 src: self.source.to_string(),
             }
             .into()),
             None => Err(UnexpectedEof {
-                span: Span::new(self.current, 1).into(),
+                span: self.previous().span.into(),
                 src: self.source.to_string(),
             }
             .into()),
@@ -116,10 +132,12 @@ impl<'a> Parser<'a> {
     }
 
     fn unary(&mut self) -> Result<Box<Expr>> {
+        let start = self.current;
         if let Some(op) = self.next_if(|a| matches!(a, TokenKind::Bang | TokenKind::Minus)) {
             Ok(Box::new(Expr::Unary {
                 op: op.clone(),
                 right: self.primary()?,
+                span: Span::new_range(start, self.current),
             }))
         } else {
             self.primary()
@@ -127,6 +145,7 @@ impl<'a> Parser<'a> {
     }
 
     fn factor(&mut self) -> Result<Box<Expr>> {
+        let start = self.current;
         let mut expr = self.unary()?;
 
         while let Some(op) = self.next_if(|k| matches!(k, TokenKind::Slash | TokenKind::Star)) {
@@ -134,6 +153,7 @@ impl<'a> Parser<'a> {
                 left: expr,
                 op: op.clone(),
                 right: self.unary()?,
+                span: Span::new_range(start, self.current),
             });
         }
 
@@ -141,6 +161,7 @@ impl<'a> Parser<'a> {
     }
 
     fn term(&mut self) -> Result<Box<Expr>> {
+        let start = self.current;
         let mut expr = self.factor()?;
 
         while let Some(op) = self.next_if(|k| matches!(k, TokenKind::Minus | TokenKind::Plus)) {
@@ -148,6 +169,7 @@ impl<'a> Parser<'a> {
                 left: expr,
                 op: op.clone(),
                 right: self.factor()?,
+                span: Span::new_range(start, self.current),
             });
         }
 
@@ -155,6 +177,7 @@ impl<'a> Parser<'a> {
     }
 
     fn comparison(&mut self) -> Result<Box<Expr>> {
+        let start = self.current;
         let mut expr = self.term()?;
 
         while let Some(op) = self.next_if(|k| {
@@ -170,6 +193,7 @@ impl<'a> Parser<'a> {
                 left: expr,
                 op: op.clone(),
                 right: self.term()?,
+                span: Span::new_range(start, self.current),
             });
         }
 
@@ -177,6 +201,7 @@ impl<'a> Parser<'a> {
     }
 
     fn equality(&mut self) -> Result<Box<Expr>> {
+        let start = self.current;
         let mut expr = self.comparison()?;
 
         while let Some(op) =
@@ -186,6 +211,7 @@ impl<'a> Parser<'a> {
                 left: expr,
                 op: op.clone(),
                 right: self.comparison()?,
+                span: Span::new_range(start, self.current),
             });
         }
 

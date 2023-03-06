@@ -1,9 +1,9 @@
-#[allow(dead_code)]
-mod error;
 mod expr;
 mod interpreter;
 mod lexer;
 mod parser;
+#[allow(dead_code)]
+mod report;
 mod token;
 mod value;
 
@@ -20,12 +20,14 @@ use miette::{Result, SourceSpan};
 use rustyline::{error::ReadlineError, DefaultEditor};
 
 use crate::parser::Parser;
-use crate::{error::ExpectedToken, lexer::Lexer};
+use crate::{lexer::Lexer, report::ExpectedToken};
 
 #[derive(CliParser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Cli {
     file: Option<PathBuf>,
+    #[arg(short, long)]
+    code: Option<String>,
 }
 
 const PROMPT: &str = "ix >> ";
@@ -33,8 +35,10 @@ const PROMPT: &str = "ix >> ";
 fn run(source: String) -> Result<()> {
     let mut lexer = Lexer::new(&source);
     let tokens = lexer.scan_tokens()?;
+    print!("{:?}\n\n", tokens);
     let mut parser = Parser::new(&source, tokens);
     let expr = parser.scan_exprs()?;
+    print!("{:?}\n\n", expr);
     let mut interpreter = Interpreter::new(&source);
     let value = interpreter.visit_expr(&expr).map_err(|_| ExpectedToken {
         span: SourceSpan::new(0.into(), 1.into()),
@@ -82,11 +86,22 @@ fn file(path: &Path) -> anyhow::Result<()> {
     Ok(())
 }
 
+fn immediate(code: String) -> anyhow::Result<()> {
+    let result = run(code);
+    if let Err(err) = result {
+        println!("{:?}", err);
+    }
+
+    Ok(())
+}
+
 fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
-    match cli.file {
-        Some(path) => file(&path),
-        None => repl(),
+    match (cli.file, cli.code) {
+        (Some(path), None) => file(&path),
+        (None, Some(code)) => immediate(code),
+        (None, None) => repl(),
+        (Some(_), Some(_)) => unimplemented!(),
     }
 }

@@ -5,7 +5,7 @@ use peekmore::{PeekMore, PeekMoreIterator};
 use rug::{Assign, Float, Integer};
 
 use crate::{
-    error::{MalformedFloatPrecision, MalformedNumber, UnexpectedCharacter, UnterminatedSequence},
+    report::{MalformedFloatPrecision, MalformedNumber, UnexpectedCharacter, UnterminatedSequence},
     token::{Literal, Span, Token, TokenKind},
 };
 

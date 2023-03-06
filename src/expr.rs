@@ -1,4 +1,4 @@
-use crate::token::Token;
+use crate::token::{Span, Token};
 use crate::value::Value;
 
 #[derive(Debug)]
@@ -7,16 +7,20 @@ pub enum Expr {
         left: Box<Expr>,
         op: Token,
         right: Box<Expr>,
+        span: Span,
     },
     Grouping {
         expr: Box<Expr>,
+        span: Span,
     },
     Literal {
         value: Value,
+        span: Span,
     },
     Unary {
         op: Token,
         right: Box<Expr>,
+        span: Span,
     },
 }
 

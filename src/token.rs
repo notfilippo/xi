@@ -11,6 +11,10 @@ impl Span {
         Self { offset, length }
     }
 
+    pub fn new_range(start: usize, end: usize) -> Self {
+        Self { offset: start, length: end - start }
+    }
+
     pub fn offset(&self) -> usize {
         self.offset
     }

@@ -1,6 +1,8 @@
 use miette::{Diagnostic, SourceSpan};
 use thiserror::Error;
 
+use crate::token::Token;
+
 #[derive(Error, Debug, Diagnostic)]
 #[error("unexpected character")]
 #[diagnostic(code(ix::lexer::unexpected_char))]
@@ -49,6 +51,8 @@ pub struct UnexpectedToken {
     pub span: SourceSpan,
     #[source_code]
     pub src: String,
+    #[help]
+    pub help: String
 }
 
 #[derive(Error, Debug, Diagnostic)]
@@ -65,6 +69,16 @@ pub struct UnexpectedEof {
 #[error("expected token")]
 #[diagnostic(code(ix::lexer::expected_token))]
 pub struct ExpectedToken {
+    #[label("here")]
+    pub span: SourceSpan,
+    #[source_code]
+    pub src: String,
+}
+
+#[derive(Error, Debug, Diagnostic)]
+#[error("unsupported operation")]
+#[diagnostic(code(ix::interpreter::unsupported_operation))]
+pub struct UnsupportedOperation {
     #[label("here")]
     pub span: SourceSpan,
     #[source_code]

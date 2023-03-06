@@ -1,8 +1,15 @@
-use std::{ops::{Add, Div, Mul, Neg, Not, Sub}, fmt::{Display, write}};
+use std::{
+    fmt::Display,
+    ops::{Add, Div, Mul, Neg, Not, Sub},
+};
 
+use miette::Report;
 use rug::{Float, Integer};
 
-use crate::token::Literal;
+use crate::{
+    report::UnsupportedOperation,
+    token::{Literal, Span},
+};
 
 #[derive(Debug, Clone)]
 pub enum Value {
@@ -190,7 +197,7 @@ impl PartialOrd for Literal {
             (Self::Integer(lhs), Self::Integer(rhs)) => lhs.partial_cmp(rhs),
             (Self::String(lhs), Self::String(rhs)) => lhs.partial_cmp(rhs),
             (Self::Identifier(lhs), Self::Identifier(rhs)) => lhs.partial_cmp(rhs),
-            _ => None
+            _ => None,
         }
     }
 }
@@ -253,6 +260,18 @@ impl From<bool> for Value {
         match value {
             true => Value::True,
             false => Value::False,
+        }
+    }
+}
+
+impl Error {
+    pub fn into_report(self, span: &Span, source: &str) -> Report {
+        match self {
+            Error::UnsupportedOperation => UnsupportedOperation {
+                span: span.clone().into(),
+                src: source.to_string(),
+            }
+            .into(),
         }
     }
 }
