@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use miette::Result;
 
 use crate::{
@@ -8,18 +10,23 @@ use crate::{
 };
 
 pub struct Parser<'a> {
-    source: &'a str,
     tokens: &'a Vec<Token>,
     current: usize,
+    current_id: usize,
 }
 
 impl<'a> Parser<'a> {
-    pub fn new(source: &'a str, tokens: &'a Vec<Token>) -> Self {
+    pub fn new(tokens: &'a Vec<Token>) -> Self {
         Self {
-            source,
             tokens,
             current: 0,
+            current_id: 0,
         }
+    }
+
+    fn next_id(&mut self) -> usize {
+        self.current_id += 1;
+        self.current_id
     }
 
     fn next(&mut self) -> Option<&Token> {
@@ -46,7 +53,6 @@ impl<'a> Parser<'a> {
         self.peek().ok_or(
             UnexpectedEof {
                 span: self.previous().span.into(),
-                src: self.source.to_string(),
             }
             .into(),
         )
@@ -65,7 +71,6 @@ impl<'a> Parser<'a> {
             Err(UnexpectedToken {
                 span: token.span.into(),
                 help: format!("wanted {:?}, found {:?}", kind, token.kind),
-                src: self.source.to_string(),
             }
             .into())
         }
@@ -94,6 +99,8 @@ impl<'a> Parser<'a> {
                     value: Value::False,
                 },
                 span: self.span(start),
+
+                id: self.next_id(),
             }));
         }
 
@@ -101,6 +108,8 @@ impl<'a> Parser<'a> {
             return Ok(Box::new(Expr {
                 kind: ExprKind::Literal { value: Value::True },
                 span: self.span(start),
+
+                id: self.next_id(),
             }));
         }
 
@@ -108,6 +117,8 @@ impl<'a> Parser<'a> {
             return Ok(Box::new(Expr {
                 kind: ExprKind::Literal { value: Value::Nil },
                 span: self.span(start),
+
+                id: self.next_id(),
             }));
         }
 
@@ -119,6 +130,8 @@ impl<'a> Parser<'a> {
                     value: token.literal.clone().unwrap().into(),
                 },
                 span: self.span(start),
+
+                id: self.next_id(),
             }));
         }
 
@@ -128,6 +141,8 @@ impl<'a> Parser<'a> {
                     name: self.previous_identifier(),
                 },
                 span: self.span(start),
+
+                id: self.next_id(),
             }));
         }
 
@@ -137,6 +152,8 @@ impl<'a> Parser<'a> {
             return Ok(Box::new(Expr {
                 kind: ExprKind::Grouping { expr },
                 span: self.span(start),
+
+                id: self.next_id(),
             }));
         }
 
@@ -144,16 +161,15 @@ impl<'a> Parser<'a> {
         Err(UnexpectedToken {
             span: token.span.into(),
             help: format!("wanted primary expr, found {:?}", token.kind),
-            src: self.source.to_string(),
         }
         .into())
     }
 
     fn finish_call(&mut self, start: usize, callee: Box<Expr>) -> Result<Box<Expr>> {
-        let mut arguments = Vec::new();
+        let mut args = Vec::new();
         if self.peek_force()?.kind != TokenKind::RightParen {
             loop {
-                arguments.push(*self.expression()?);
+                args.push(*self.expression()?);
                 if self.next_is(|k| k == TokenKind::Comma).is_none() {
                     break;
                 }
@@ -163,8 +179,10 @@ impl<'a> Parser<'a> {
         self.consume(TokenKind::RightParen)?;
 
         Ok(Box::new(Expr {
-            kind: ExprKind::Call { callee, arguments },
+            kind: ExprKind::Call { callee, args },
             span: self.span(start),
+
+            id: self.next_id(),
         }))
     }
 
@@ -178,7 +196,7 @@ impl<'a> Parser<'a> {
             } else {
                 break;
             }
-        };
+        }
 
         Ok(expr)
     }
@@ -192,6 +210,8 @@ impl<'a> Parser<'a> {
                     right: self.primary()?,
                 },
                 span: self.span(start),
+
+                id: self.next_id(),
             }))
         } else {
             self.call()
@@ -210,6 +230,8 @@ impl<'a> Parser<'a> {
                     right: self.unary()?,
                 },
                 span: self.span(start),
+
+                id: self.next_id(),
             });
         }
 
@@ -228,6 +250,8 @@ impl<'a> Parser<'a> {
                     right: self.factor()?,
                 },
                 span: self.span(start),
+
+                id: self.next_id(),
             });
         }
 
@@ -254,6 +278,8 @@ impl<'a> Parser<'a> {
                     right: self.term()?,
                 },
                 span: self.span(start),
+
+                id: self.next_id(),
             });
         }
 
@@ -274,6 +300,8 @@ impl<'a> Parser<'a> {
                     right: self.comparison()?,
                 },
                 span: self.span(start),
+
+                id: self.next_id(),
             });
         }
 
@@ -294,6 +322,8 @@ impl<'a> Parser<'a> {
                     right,
                 },
                 span: self.span(start),
+
+                id: self.next_id(),
             })
         }
 
@@ -314,6 +344,8 @@ impl<'a> Parser<'a> {
                     right,
                 },
                 span: self.span(start),
+
+                id: self.next_id(),
             })
         }
 
@@ -331,11 +363,12 @@ impl<'a> Parser<'a> {
                 Ok(Box::new(Expr {
                     kind: ExprKind::Assign { name, expr },
                     span: self.span(start),
+
+                    id: self.next_id(),
                 }))
             } else {
                 Err(InvalidAssignmentTarget {
                     span: self.span(start).into(),
-                    src: self.source.to_string(),
                 }
                 .into())
             }
@@ -383,11 +416,13 @@ impl<'a> Parser<'a> {
         Ok(Box::new(Stmt {
             kind: StmtKind::Expression { expr: value },
             span: self.span(start),
+
+            id: self.next_id(),
         }))
     }
 
     pub fn if_statement(&mut self) -> Result<Box<Stmt>> {
-        let start = self.current;
+        let start = self.current - 1;
         self.consume(TokenKind::LeftParen)?;
         let cond = self.expression()?;
         self.consume(TokenKind::RightParen)?;
@@ -406,18 +441,20 @@ impl<'a> Parser<'a> {
                 else_branch,
             },
             span: self.span(start),
+
+            id: self.next_id(),
         }))
     }
 
     pub fn for_statement(&mut self) -> Result<Box<Stmt>> {
-        let start = self.current;
+        let start = self.current - 1;
 
         self.consume(TokenKind::LeftParen)?;
 
         let initializer = if self.next_is(|k| k == TokenKind::Semicolon).is_some() {
             None
         } else if self.next_is(|k| k == TokenKind::Let).is_some() {
-            Some(self.var_declaration()?)
+            Some(self.let_declaration()?)
         } else {
             Some(self.expression_statement()?)
         };
@@ -426,6 +463,7 @@ impl<'a> Parser<'a> {
             TokenKind::Semicolon => Box::new(Expr {
                 kind: ExprKind::Literal { value: Value::True },
                 span: self.peek_force()?.span,
+                id: self.next_id(),
             }),
             _ => self.expression()?,
         };
@@ -440,7 +478,6 @@ impl<'a> Parser<'a> {
         self.consume(TokenKind::RightParen)?;
 
         let mut body = self.statement()?;
-        let end = self.current;
 
         if let Some(increment) = increment {
             body = Box::new(Stmt {
@@ -449,17 +486,20 @@ impl<'a> Parser<'a> {
                         *body,
                         Stmt {
                             kind: StmtKind::Expression { expr: increment },
-                            span: Span::new_range(start, end),
+                            span: self.span(start),
+                            id: self.next_id(),
                         },
                     ],
                 },
-                span: Span::new_range(start, end),
+                span: self.span(start),
+                id: self.next_id(),
             });
         }
 
         body = Box::new(Stmt {
             kind: StmtKind::While { cond, body },
-            span: Span::new_range(start, end),
+            span: self.span(start),
+            id: self.next_id(),
         });
 
         if let Some(initializer) = initializer {
@@ -467,7 +507,8 @@ impl<'a> Parser<'a> {
                 kind: StmtKind::Block {
                     statements: vec![*initializer, *body],
                 },
-                span: Span::new_range(start, end),
+                span: self.span(start),
+                id: self.next_id(),
             })
         }
 
@@ -475,21 +516,47 @@ impl<'a> Parser<'a> {
     }
 
     fn print_statement(&mut self) -> Result<Box<Stmt>> {
-        let start = self.current;
-        let value = self.expression()?;
+        let start = self.current - 1;
+        let expr = self.expression()?;
 
         if self.peek().is_some() {
             self.consume(TokenKind::Semicolon)?;
         }
 
         Ok(Box::new(Stmt {
-            kind: StmtKind::Print { expr: value },
+            kind: StmtKind::Print { expr },
             span: self.span(start),
+
+            id: self.next_id(),
+        }))
+    }
+
+    fn return_statement(&mut self) -> Result<Box<Stmt>> {
+        let start = self.current - 1;
+        let expr = if self.peek().is_some() {
+            if self.peek_force()?.kind == TokenKind::Semicolon {
+                None
+            } else {
+                Some(self.expression()?)
+            }
+        } else {
+            None
+        };
+
+        if self.peek().is_some() {
+            self.consume(TokenKind::Semicolon)?;
+        }
+
+        Ok(Box::new(Stmt {
+            kind: StmtKind::Return { expr },
+            span: self.span(start),
+
+            id: self.next_id(),
         }))
     }
 
     fn while_statement(&mut self) -> Result<Box<Stmt>> {
-        let start = self.current;
+        let start = self.current - 1;
         self.consume(TokenKind::LeftParen)?;
         let cond = self.expression()?;
         self.consume(TokenKind::RightParen)?;
@@ -499,6 +566,7 @@ impl<'a> Parser<'a> {
         Ok(Box::new(Stmt {
             kind: StmtKind::While { cond, body },
             span: self.span(start),
+            id: self.next_id(),
         }))
     }
 
@@ -520,6 +588,7 @@ impl<'a> Parser<'a> {
         Ok(Box::new(Stmt {
             kind: StmtKind::Block { statements },
             span: self.span(start),
+            id: self.next_id(),
         }))
     }
 
@@ -530,6 +599,8 @@ impl<'a> Parser<'a> {
             self.if_statement()
         } else if self.next_is(|k| k == TokenKind::Print).is_some() {
             self.print_statement()
+        } else if self.next_is(|k| k == TokenKind::Return).is_some() {
+            self.return_statement()
         } else if self.next_is(|k| k == TokenKind::While).is_some() {
             self.while_statement()
         } else if self.next_is(|k| k == TokenKind::LeftBrace).is_some() {
@@ -539,7 +610,42 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn var_declaration(&mut self) -> Result<Box<Stmt>> {
+    fn function(&mut self) -> Result<Box<Stmt>> {
+        let start = self.current;
+
+        self.consume(TokenKind::Identifier)?;
+        let name = self.previous_identifier();
+
+        self.consume(TokenKind::LeftParen)?;
+
+        let mut params = Vec::new();
+        if self.peek_force()?.kind != TokenKind::RightParen {
+            loop {
+                self.consume(TokenKind::Identifier)?;
+                params.push(self.previous_identifier());
+
+                if self.next_is(|k| k == TokenKind::Comma).is_none() {
+                    break;
+                }
+            }
+        }
+
+        self.consume(TokenKind::RightParen)?;
+        self.consume(TokenKind::LeftBrace)?;
+        let body = self.get_block()?;
+
+        Ok(Box::new(Stmt {
+            kind: StmtKind::Function {
+                name,
+                params: Rc::new(params),
+                body: Rc::new(body),
+            },
+            span: self.span(start),
+            id: self.next_id(),
+        }))
+    }
+
+    fn let_declaration(&mut self) -> Result<Box<Stmt>> {
         let start = self.current;
 
         self.consume(TokenKind::Identifier)?;
@@ -558,12 +664,16 @@ impl<'a> Parser<'a> {
         Ok(Box::new(Stmt {
             kind: StmtKind::Let { name, initializer },
             span: self.span(start),
+
+            id: self.next_id(),
         }))
     }
 
     fn declaration(&mut self) -> Result<Box<Stmt>> {
-        if self.next_is(|k| k == TokenKind::Let).is_some() {
-            self.var_declaration()
+        if self.next_is(|k| k == TokenKind::Fn).is_some() {
+            self.function()
+        } else if self.next_is(|k| k == TokenKind::Let).is_some() {
+            self.let_declaration()
         } else {
             self.statement()
         }

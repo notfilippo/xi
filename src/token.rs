@@ -1,6 +1,6 @@
 use miette::SourceSpan;
 
-#[derive(Default, Debug, Clone, Copy)]
+#[derive(Default, Debug, Clone, Copy, Hash)]
 pub struct Span {
     pub offset: usize,
     pub length: usize,

@@ -1,5 +1,4 @@
 use std::{
-    cell::RefCell,
     fmt::{Display, Pointer},
     ops::{Add, Div, Mul, Neg, Not, Sub},
     rc::Rc,
@@ -10,14 +9,10 @@ use rug::{integer::TryFromIntegerError, Float, Integer};
 use thiserror::Error;
 
 use crate::{
-    env::Env,
+    function::Function,
     report::UnsupportedOperation,
     token::{Literal, Span},
 };
-
-pub trait Function: std::fmt::Debug {
-    fn run(&self, env: &Rc<RefCell<Env>>, arguments: Vec<Value>) -> Result<Value, Report>;
-}
 
 #[derive(Debug, Clone)]
 pub enum Value {
@@ -292,16 +287,14 @@ impl From<bool> for Value {
 }
 
 impl ValueError {
-    pub fn into_report(self, span: &Span, source: &str) -> Report {
+    pub fn into_report(self, span: &Span) -> Report {
         match self {
             ValueError::UnsupportedOperation => UnsupportedOperation {
                 span: (*span).into(),
-                src: source.to_string(),
             }
             .into(),
             ValueError::IntegerConversionError(_) => UnsupportedOperation {
                 span: (*span).into(),
-                src: source.to_string(),
             }
             .into(),
         }

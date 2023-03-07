@@ -1,5 +1,6 @@
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::hash::{Hash, Hasher};
 
 use crate::env::Env;
 use crate::token::{Span, Token};
@@ -18,7 +19,7 @@ pub enum ExprKind {
     },
     Call {
         callee: Box<Expr>,
-        arguments: Vec<Expr>,
+        args: Vec<Expr>,
     },
     Grouping {
         expr: Box<Expr>,
@@ -44,6 +45,13 @@ pub enum ExprKind {
 pub struct Expr {
     pub kind: ExprKind,
     pub span: Span,
+    pub id: usize
+}
+
+impl Hash for Expr {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.span.hash(state);
+    }
 }
 
 #[derive(Debug)]
@@ -54,6 +62,11 @@ pub enum StmtKind {
     Expression {
         expr: Box<Expr>,
     },
+    Function {
+        name: String,
+        params: Rc<Vec<String>>,
+        body: Rc<Vec<Stmt>>,
+    },
     If {
         cond: Box<Expr>,
         then_branch: Box<Stmt>,
@@ -61,6 +74,9 @@ pub enum StmtKind {
     },
     Print {
         expr: Box<Expr>,
+    },
+    Return {
+        expr: Option<Box<Expr>>,
     },
     Let {
         name: String,
@@ -76,6 +92,13 @@ pub enum StmtKind {
 pub struct Stmt {
     pub kind: StmtKind,
     pub span: Span,
+    pub id: usize
+}
+
+impl Hash for Stmt {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.span.hash(state);
+    }
 }
 
 pub trait ExprVisitor<T> {

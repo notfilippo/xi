@@ -1,14 +1,26 @@
-let a = 0;
-let temp = 1;
+fn makeCounter() {
+  let i = 0;
+  fn count() {
+    i = i + 1;
+    print i;
+  }
 
-let start = time();
-
-for (let b = 1; a < 1000000000000000000000; b = temp + b) {
-  print a;
-  temp = a;
-  a = b;
+  return count;
 }
 
-let end = time();
+let counter = makeCounter();
+counter();
+counter();
+counter();
+counter();
+counter();
+counter();
+counter();
+counter();
+counter();
+counter();
+counter();
+counter();
+counter();
 
-print "Execution took: " + ((end - start) / 1e6) + " ms";
+return "True";

@@ -7,8 +7,6 @@ use thiserror::Error;
 pub struct UnexpectedCharacter {
     #[label("here")]
     pub span: SourceSpan,
-    #[source_code]
-    pub src: String,
 }
 
 #[derive(Error, Debug, Diagnostic)]
@@ -17,8 +15,6 @@ pub struct UnexpectedCharacter {
 pub struct MalformedFloatPrecision {
     #[label("here")]
     pub span: SourceSpan,
-    #[source_code]
-    pub src: String,
 }
 
 #[derive(Error, Debug, Diagnostic)]
@@ -27,8 +23,6 @@ pub struct MalformedFloatPrecision {
 pub struct MalformedNumber {
     #[label("here")]
     pub span: SourceSpan,
-    #[source_code]
-    pub src: String,
 }
 
 #[derive(Error, Debug, Diagnostic)]
@@ -37,8 +31,6 @@ pub struct MalformedNumber {
 pub struct UnterminatedSequence {
     #[label("here")]
     pub span: SourceSpan,
-    #[source_code]
-    pub src: String,
 }
 
 #[derive(Error, Debug, Diagnostic)]
@@ -47,8 +39,6 @@ pub struct UnterminatedSequence {
 pub struct UnexpectedToken {
     #[label("here")]
     pub span: SourceSpan,
-    #[source_code]
-    pub src: String,
     #[help]
     pub help: String,
 }
@@ -59,8 +49,6 @@ pub struct UnexpectedToken {
 pub struct UnexpectedEof {
     #[label("here")]
     pub span: SourceSpan,
-    #[source_code]
-    pub src: String,
 }
 
 #[derive(Error, Debug, Diagnostic)]
@@ -69,8 +57,6 @@ pub struct UnexpectedEof {
 pub struct ExpectedToken {
     #[label("here")]
     pub span: SourceSpan,
-    #[source_code]
-    pub src: String,
 }
 
 #[derive(Error, Debug, Diagnostic)]
@@ -79,8 +65,6 @@ pub struct ExpectedToken {
 pub struct UnsupportedOperation {
     #[label("here")]
     pub span: SourceSpan,
-    #[source_code]
-    pub src: String,
 }
 
 #[derive(Error, Debug, Diagnostic)]
@@ -89,8 +73,6 @@ pub struct UnsupportedOperation {
 pub struct UndefinedValue {
     #[label("here")]
     pub span: SourceSpan,
-    #[source_code]
-    pub src: String,
 }
 
 #[derive(Error, Debug, Diagnostic)]
@@ -99,8 +81,6 @@ pub struct UndefinedValue {
 pub struct InvalidAssignmentTarget {
     #[label("here")]
     pub span: SourceSpan,
-    #[source_code]
-    pub src: String,
 }
 
 #[derive(Error, Debug, Diagnostic)]
@@ -109,6 +89,12 @@ pub struct InvalidAssignmentTarget {
 pub struct CalleeTypeError {
     #[label("here")]
     pub span: SourceSpan,
-    #[source_code]
-    pub src: String,
+}
+
+#[derive(Error, Debug, Diagnostic)]
+#[error("illegal to read local variable in its own initializer")]
+#[diagnostic(code(ix::resolver::read_local_variable_in_own_initializer))]
+pub struct ReadLocalVariableInOwnInitializer {
+    #[label("here")]
+    pub span: SourceSpan,
 }

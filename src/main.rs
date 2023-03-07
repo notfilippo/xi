@@ -1,10 +1,12 @@
-mod builtin;
+mod context;
 mod env;
 mod expr;
+mod function;
 mod interpreter;
 mod lexer;
 mod parser;
 mod report;
+mod resolver;
 mod token;
 mod value;
 
@@ -18,12 +20,14 @@ use std::{
 use anyhow::Context;
 use clap::Parser as CliParser;
 use env::Env;
-use interpreter::Interpreter;
 use miette::Result;
 use rustyline::{error::ReadlineError, DefaultEditor};
 
-use crate::lexer::Lexer;
-use crate::parser::Parser;
+use crate::{
+    interpreter::{interpret, RuntimeError},
+    lexer::Lexer, resolver::Resolver, context::Ctx,
+};
+use crate::{parser::Parser, value::Value};
 
 #[derive(CliParser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -36,13 +40,28 @@ struct Cli {
 const PROMPT: &str = "ix >> ";
 
 fn run(source: String, env: &Rc<RefCell<Env>>) -> Result<()> {
-    let mut lexer = Lexer::new(&source);
-    let tokens = lexer.scan_tokens()?;
-    let mut parser = Parser::new(&source, tokens);
-    let statements = parser.parse()?;
-    let mut interpreter = Interpreter::new(&source);
+    fn inner(source: &str, env: &Rc<RefCell<Env>>) -> Result<Value> {
+        let mut lexer = Lexer::new(source);
+        let tokens = lexer.scan_tokens()?;
+        let mut parser = Parser::new(tokens);
+        let statements = parser.parse()?;
 
-    println!("{}", interpreter.interpret(env, &statements)?);
+        let mut resolver = Resolver::default();
+        resolver.resolve(&statements)?;
+
+        let context = Rc::new(RefCell::new(Ctx::new(env, Rc::new(resolver))));
+
+        let result = interpret(&context, &statements);
+        match result {
+            Ok(value) => Ok(value),
+            Err(RuntimeError::Return(value)) => Ok(value),
+            Err(RuntimeError::Report(report)) => Err(report),
+        }
+    }
+
+    let result = inner(&source, env).map_err(|error| error.with_source_code(source.clone()))?;
+
+    println!("{}", result);
 
     Ok(())
 }
@@ -50,7 +69,7 @@ fn run(source: String, env: &Rc<RefCell<Env>>) -> Result<()> {
 fn repl() -> anyhow::Result<()> {
     let mut rl = DefaultEditor::new()?;
     rl.load_history("history.txt").ok();
-    let env = Rc::new(RefCell::new(Env::global()));
+    let env = Env::global();
     loop {
         let result = match rl.readline(PROMPT) {
             Ok(line) => {
@@ -78,7 +97,7 @@ fn repl() -> anyhow::Result<()> {
 
 fn file(path: &Path) -> anyhow::Result<()> {
     let source = fs::read_to_string(path)?;
-    let result = run(source, &Rc::new(RefCell::new(Env::global())));
+    let result = run(source, &Env::global());
     if let Err(err) = result {
         println!("{:?}", err);
     }
@@ -87,7 +106,7 @@ fn file(path: &Path) -> anyhow::Result<()> {
 }
 
 fn immediate(code: String) -> anyhow::Result<()> {
-    let result = run(code, &Rc::new(RefCell::new(Env::global())));
+    let result = run(code, &Env::global());
     if let Err(err) = result {
         println!("{:?}", err);
     }

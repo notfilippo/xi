@@ -103,7 +103,6 @@ impl<'a> Lexer<'a> {
         } else {
             Err(UnterminatedSequence {
                 span: self.span().into(),
-                src: self.source.to_string(),
             }
             .into())
         }
@@ -121,7 +120,6 @@ impl<'a> Lexer<'a> {
             let literal = self.source[end + 1..self.current].to_string();
             precision = literal.parse().map_err(|_| MalformedFloatPrecision {
                 span: Span::new(end, 1).into(),
-                src: self.source.to_string(),
             })?;
         }
 
@@ -135,7 +133,6 @@ impl<'a> Lexer<'a> {
         } else {
             Err(MalformedNumber {
                 span: self.span().into(),
-                src: self.source.to_string(),
             }
             .into())
         }
@@ -152,7 +149,6 @@ impl<'a> Lexer<'a> {
         } else {
             Err(MalformedNumber {
                 span: self.span().into(),
-                src: self.source.to_string(),
             }
             .into())
         }
@@ -309,7 +305,6 @@ impl<'a> Lexer<'a> {
                 } else {
                     Err(UnexpectedCharacter {
                         span: self.span().into(),
-                        src: self.source.to_string(),
                     }
                     .into())
                 }

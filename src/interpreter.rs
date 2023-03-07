@@ -8,179 +8,188 @@ use std::rc::Rc;
 
 use miette::Report;
 
-use crate::env::Env;
+use crate::context::Ctx;
 use crate::expr::Expr;
 use crate::expr::ExprKind;
-use crate::expr::ExprVisitor;
 use crate::expr::Stmt;
 use crate::expr::StmtKind;
-use crate::expr::StmtVisitor;
+use crate::function::Simple;
 use crate::report::CalleeTypeError;
 use crate::token::TokenKind;
 use crate::value::Value;
 
-pub struct Interpreter<'a> {
-    source: &'a str,
+pub enum RuntimeError {
+    Report(Report),
+    Return(Value),
 }
 
-impl<'a> Interpreter<'a> {
-    pub fn new(source: &'a str) -> Self {
-        Self { source }
+impl From<Report> for RuntimeError {
+    fn from(value: Report) -> Self {
+        Self::Report(value)
     }
+}
 
-    pub fn interpret(
-        &mut self,
-        env: &Rc<RefCell<Env>>,
-        statements: &Vec<Stmt>,
-    ) -> Result<Value, Report> {
-        match statements.len() {
-            0 => Ok(Value::Nil),
-            1 => self.visit_stmt(env, &statements[0]),
-            _ => {
-                if statements.len() > 1 {
-                    for stmt in statements.iter().take(statements.len() - 1) {
-                        self.visit_stmt(env, stmt)?;
-                    }
+impl From<Value> for RuntimeError {
+    fn from(value: Value) -> Self {
+        Self::Return(value)
+    }
+}
+
+pub fn interpret(ctx: &Rc<RefCell<Ctx>>, statements: &Vec<Stmt>) -> Result<Value, RuntimeError> {
+    match statements.len() {
+        0 => Ok(Value::Nil),
+        1 => visit_stmt(ctx, &statements[0]),
+        _ => {
+            if statements.len() > 1 {
+                for stmt in statements.iter().take(statements.len() - 1) {
+                    visit_stmt(ctx, stmt)?;
                 }
-
-                self.visit_stmt(env, &statements[statements.len() - 1]) // keep the value of the last
             }
+
+            visit_stmt(ctx, &statements[statements.len() - 1]) // keep the value of the last
         }
     }
 }
 
-impl<'a> ExprVisitor<Value> for Interpreter<'a> {
-    type Error = Report;
+fn visit_value(_: &Rc<RefCell<Ctx>>, value: &Value) -> Result<Value, RuntimeError> {
+    Ok(value.clone())
+}
 
-    fn visit_value(&mut self, _: &Rc<RefCell<Env>>, value: &Value) -> Result<Value, Self::Error> {
-        Ok(value.clone())
-    }
+fn visit_expr(ctx: &Rc<RefCell<Ctx>>, expr: &Expr) -> Result<Value, RuntimeError> {
+    match &expr.kind {
+        ExprKind::Grouping { expr } => visit_expr(ctx, expr),
+        ExprKind::Literal { value } => visit_value(ctx, value),
+        ExprKind::Unary { op, right } => {
+            let value = visit_expr(ctx, right)?;
+            match op.kind {
+                TokenKind::Minus => Ok(value.neg().map_err(|e| e.into_report(&expr.span))?),
+                TokenKind::Bang => Ok(!value),
+                _ => unreachable!(),
+            }
+        }
+        ExprKind::Binary { left, op, right } => {
+            let l = visit_expr(ctx, left)?;
+            let r = visit_expr(ctx, right)?;
+            match op.kind {
+                TokenKind::Minus => Ok(l.sub(r).map_err(|e| e.into_report(&expr.span))?),
+                TokenKind::Slash => Ok(l.div(r).map_err(|e| e.into_report(&expr.span))?),
+                TokenKind::Star => Ok(l.mul(r).map_err(|e| e.into_report(&expr.span))?),
+                TokenKind::Plus => Ok(l.add(r).map_err(|e| e.into_report(&expr.span))?),
+                TokenKind::Greater => Ok((l.gt(&r)).into()),
+                TokenKind::GreaterEqual => Ok((l.ge(&r)).into()),
+                TokenKind::Less => Ok((l.lt(&r)).into()),
+                TokenKind::LessEqual => Ok((l.le(&r)).into()),
+                TokenKind::EqualEqual => Ok((l.eq(&r)).into()),
+                TokenKind::BangEqual => Ok((!l.eq(&r)).into()),
+                _ => unreachable!(),
+            }
+        }
+        ExprKind::Variable { name } => Ok(ctx
+            .borrow()
+            .get(expr, name)
+            .map_err(|e| e.into_report(&expr.span))?),
+        ExprKind::Assign { name, expr: value } => {
+            let value = visit_expr(ctx, value)?;
+            ctx
+            .borrow_mut()
+                .assign(expr, name.clone(), value.clone())
+                .map_err(|e| e.into_report(&expr.span))?;
+            Ok(value)
+        }
+        ExprKind::Logical { left, op, right } => {
+            let left = visit_expr(ctx, left)?;
 
-    fn visit_expr(&mut self, env: &Rc<RefCell<Env>>, expr: &Expr) -> Result<Value, Self::Error> {
-        match &expr.kind {
-            ExprKind::Grouping { expr } => self.visit_expr(env, expr),
-            ExprKind::Literal { value } => self.visit_value(env, value),
-            ExprKind::Unary { op, right } => {
-                let value = self.visit_expr(env, right)?;
-                match op.kind {
-                    TokenKind::Minus => value
-                        .neg()
-                        .map_err(|e| e.into_report(&expr.span, self.source)),
-                    TokenKind::Bang => Ok(!value),
-                    _ => unreachable!(),
-                }
+            if (op.kind == TokenKind::Or && left.is_truthy())
+                || (op.kind == TokenKind::And && !left.is_truthy())
+            {
+                Ok(left)
+            } else {
+                visit_expr(ctx, right)
             }
-            ExprKind::Binary { left, op, right } => {
-                let l = self.visit_expr(env, left)?;
-                let r = self.visit_expr(env, right)?;
-                match op.kind {
-                    TokenKind::Minus => {
-                        l.sub(r).map_err(|e| e.into_report(&expr.span, self.source))
-                    }
-                    TokenKind::Slash => {
-                        l.div(r).map_err(|e| e.into_report(&expr.span, self.source))
-                    }
-                    TokenKind::Star => l.mul(r).map_err(|e| e.into_report(&expr.span, self.source)),
-                    TokenKind::Plus => l.add(r).map_err(|e| e.into_report(&expr.span, self.source)),
-                    TokenKind::Greater => Ok((l.gt(&r)).into()),
-                    TokenKind::GreaterEqual => Ok((l.ge(&r)).into()),
-                    TokenKind::Less => Ok((l.lt(&r)).into()),
-                    TokenKind::LessEqual => Ok((l.le(&r)).into()),
-                    TokenKind::EqualEqual => Ok((l.eq(&r)).into()),
-                    TokenKind::BangEqual => Ok((!l.eq(&r)).into()),
-                    _ => unreachable!(),
-                }
-            }
-            ExprKind::Variable { name } => env
-                .borrow_mut()
-                .get(name)
-                .map_err(|e| e.into_report(&expr.span, self.source)),
-            ExprKind::Assign { name, expr } => {
-                let value = self.visit_expr(env, expr)?;
-                env.borrow_mut()
-                    .assign(name.clone(), value.clone())
-                    .map_err(|e| e.into_report(&expr.span, self.source))?;
-                Ok(value)
-            }
-            ExprKind::Logical { left, op, right } => {
-                let left = self.visit_expr(env, left)?;
+        }
+        ExprKind::Call { callee, args } => {
+            let callee = visit_expr(ctx, callee)?;
+            let args = args
+                .iter()
+                .map(|e| visit_expr(ctx, e))
+                .collect::<Result<Vec<_>, _>>()?;
 
-                if op.kind == TokenKind::Or && left.is_truthy() {
-                    Ok(left)
-                } else if op.kind == TokenKind::And && !left.is_truthy() {
-                    Ok(left)
-                } else {
-                    self.visit_expr(env, right)
-                }
-            }
-            ExprKind::Call { callee, arguments } => {
-                let callee = self.visit_expr(env, callee)?;
-                let arguments = arguments
-                    .into_iter()
-                    .map(|e| self.visit_expr(env, e))
-                    .collect::<Result<Vec<_>, _>>()?;
-
-                match callee {
-                    Value::Function(f) => f.run(env, arguments),
-                    _ => Err(CalleeTypeError {
+            match callee {
+                Value::Function(f) => Ok(f.call(ctx, args)?),
+                _ => Err(RuntimeError::Report(
+                    CalleeTypeError {
                         span: expr.span.into(),
-                        src: self.source.to_string(),
                     }
-                    .into()),
-                }
+                    .into(),
+                )),
             }
         }
     }
 }
 
-impl<'a> StmtVisitor<Value> for Interpreter<'a> {
-    type Error = Report;
+fn visit_stmt(ctx: &Rc<RefCell<Ctx>>, stmt: &Stmt) -> Result<Value, RuntimeError> {
+    match &stmt.kind {
+        StmtKind::Expression { expr } => visit_expr(ctx, expr),
+        StmtKind::Print { expr } => {
+            let value = visit_expr(ctx, expr)?;
+            println!("{}", value);
+            Ok(Value::Nil)
+        }
+        StmtKind::Let { name, initializer } => {
+            let value = match initializer {
+                Some(expr) => visit_expr(ctx, expr)?,
+                None => Value::Nil,
+            };
 
-    fn visit_stmt(&mut self, env: &Rc<RefCell<Env>>, stmt: &Stmt) -> Result<Value, Self::Error> {
-        match &stmt.kind {
-            StmtKind::Expression { expr } => self.visit_expr(env, expr),
-            StmtKind::Print { expr } => {
-                let value = self.visit_expr(env, expr)?;
-                println!("{}", value);
+            ctx.borrow_mut().define(name.clone(), value);
+
+            Ok(Value::Nil)
+        }
+        StmtKind::Block { statements } => {
+            let new_env = Ctx::with_parent(ctx);
+            interpret(&new_env, statements)?;
+
+            Ok(Value::Nil)
+        }
+        StmtKind::If {
+            cond,
+            then_branch,
+            else_branch,
+        } => {
+            let value = visit_expr(ctx, cond)?;
+            if value.is_truthy() {
+                visit_stmt(ctx, then_branch)
+            } else if let Some(else_branch) = else_branch {
+                visit_stmt(ctx, else_branch)
+            } else {
                 Ok(Value::Nil)
             }
-            StmtKind::Let { name, initializer } => {
-                let value = match initializer {
-                    Some(expr) => self.visit_expr(env, expr)?,
-                    None => Value::Nil,
-                };
-
-                env.borrow_mut().define(name.clone(), value);
-
-                Ok(Value::Nil)
+        }
+        StmtKind::While { cond, body } => {
+            while visit_expr(ctx, cond)?.is_truthy() {
+                visit_stmt(ctx, body)?;
             }
-            StmtKind::Block { statements } => {
-                let new_env = Rc::new(RefCell::new(Env::with_parent(env)));
-                self.interpret(&new_env, statements)?;
 
-                Ok(Value::Nil)
-            }
-            StmtKind::If {
-                cond,
-                then_branch,
-                else_branch,
-            } => {
-                let value = self.visit_expr(env, cond)?;
-                if value.is_truthy() {
-                    self.visit_stmt(env, then_branch)
-                } else if let Some(else_branch) = else_branch {
-                    self.visit_stmt(env, else_branch)
-                } else {
-                    Ok(Value::Nil)
-                }
-            }
-            StmtKind::While { cond, body } => {
-                while self.visit_expr(env, cond)?.is_truthy() {
-                    self.visit_stmt(env, body)?;
-                }
+            Ok(Value::Nil)
+        }
+        StmtKind::Function { name, params, body } => {
+            let function = Value::Function(Rc::new(Simple {
+                params: params.clone(),
+                body: body.clone(),
+                closure: ctx.clone(),
+            }));
 
-                Ok(Value::Nil)
-            }
+            ctx.borrow_mut().define(name.clone(), function);
+
+            Ok(Value::Nil)
+        }
+        StmtKind::Return { expr } => {
+            let value = match expr {
+                Some(expr) => visit_expr(ctx, expr)?,
+                None => Value::Nil,
+            };
+
+            Err(RuntimeError::Return(value))
         }
     }
 }
