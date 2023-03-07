@@ -3,7 +3,7 @@ use std::{collections::{hash_map::Entry, HashMap}, cell::RefCell, rc::Rc};
 use miette::Report;
 use thiserror::Error;
 
-use crate::{report::UndefinedValue, token::Span, value::Value};
+use crate::{report::UndefinedValue, token::Span, value::Value, builtin::TimeBuiltin};
 
 #[derive(Default, Clone)]
 pub struct Env {
@@ -17,6 +17,12 @@ impl Env {
             values: HashMap::default(),
             enclosing: Some(enclosing.clone()),
         }
+    }
+
+    pub fn global() -> Self {
+        let mut global = Env::default();
+        global.define("time".to_string(), Value::Function(Rc::new(TimeBuiltin {})));
+        global
     }
 }
 

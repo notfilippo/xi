@@ -16,6 +16,10 @@ pub enum ExprKind {
         op: Token,
         right: Box<Expr>,
     },
+    Call {
+        callee: Box<Expr>,
+        arguments: Vec<Expr>,
+    },
     Grouping {
         expr: Box<Expr>,
     },
@@ -58,7 +62,7 @@ pub enum StmtKind {
     Print {
         expr: Box<Expr>,
     },
-    Var {
+    Let {
         name: String,
         initializer: Option<Box<Expr>>,
     },

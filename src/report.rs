@@ -102,3 +102,13 @@ pub struct InvalidAssignmentTarget {
     #[source_code]
     pub src: String,
 }
+
+#[derive(Error, Debug, Diagnostic)]
+#[error("only functions and classes can be called")]
+#[diagnostic(code(ix::interpreter::callee_type_error))]
+pub struct CalleeTypeError {
+    #[label("here")]
+    pub span: SourceSpan,
+    #[source_code]
+    pub src: String,
+}

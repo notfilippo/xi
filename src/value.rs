@@ -1,6 +1,8 @@
 use std::{
-    fmt::Display,
+    cell::RefCell,
+    fmt::{Display, Pointer},
     ops::{Add, Div, Mul, Neg, Not, Sub},
+    rc::Rc,
 };
 
 use miette::Report;
@@ -8,9 +10,14 @@ use rug::{integer::TryFromIntegerError, Float, Integer};
 use thiserror::Error;
 
 use crate::{
+    env::Env,
     report::UnsupportedOperation,
     token::{Literal, Span},
 };
+
+pub trait Function: std::fmt::Debug {
+    fn run(&self, env: &Rc<RefCell<Env>>, arguments: Vec<Value>) -> Result<Value, Report>;
+}
 
 #[derive(Debug, Clone)]
 pub enum Value {
@@ -18,6 +25,7 @@ pub enum Value {
     False,
     Nil,
     Literal(Literal),
+    Function(Rc<dyn Function>),
 }
 
 #[derive(Error, Debug)]
@@ -318,6 +326,7 @@ impl Display for Value {
             Self::False => write!(f, "false"),
             Self::Nil => write!(f, "nil"),
             Self::Literal(value) => value.fmt(f),
+            Self::Function(value) => value.fmt(f),
         }
     }
 }

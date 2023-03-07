@@ -1,3 +1,4 @@
+mod builtin;
 mod env;
 mod expr;
 mod interpreter;
@@ -8,8 +9,10 @@ mod token;
 mod value;
 
 use std::{
+    cell::RefCell,
     fs,
-    path::{Path, PathBuf}, cell::RefCell, rc::Rc,
+    path::{Path, PathBuf},
+    rc::Rc,
 };
 
 use anyhow::Context;
@@ -39,7 +42,6 @@ fn run(source: String, env: &Rc<RefCell<Env>>) -> Result<()> {
     let statements = parser.parse()?;
     let mut interpreter = Interpreter::new(&source);
 
-    println!("{:?}", statements);
     println!("{}", interpreter.interpret(env, &statements)?);
 
     Ok(())
@@ -48,7 +50,7 @@ fn run(source: String, env: &Rc<RefCell<Env>>) -> Result<()> {
 fn repl() -> anyhow::Result<()> {
     let mut rl = DefaultEditor::new()?;
     rl.load_history("history.txt").ok();
-    let env = Rc::new(RefCell::<Env>::default());
+    let env = Rc::new(RefCell::new(Env::global()));
     loop {
         let result = match rl.readline(PROMPT) {
             Ok(line) => {
@@ -76,7 +78,7 @@ fn repl() -> anyhow::Result<()> {
 
 fn file(path: &Path) -> anyhow::Result<()> {
     let source = fs::read_to_string(path)?;
-    let result = run(source, &Rc::new(RefCell::<Env>::default()));
+    let result = run(source, &Rc::new(RefCell::new(Env::global())));
     if let Err(err) = result {
         println!("{:?}", err);
     }
@@ -85,7 +87,7 @@ fn file(path: &Path) -> anyhow::Result<()> {
 }
 
 fn immediate(code: String) -> anyhow::Result<()> {
-    let result = run(code, &Rc::new(RefCell::<Env>::default()));
+    let result = run(code, &Rc::new(RefCell::new(Env::global())));
     if let Err(err) = result {
         println!("{:?}", err);
     }

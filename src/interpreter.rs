@@ -15,6 +15,7 @@ use crate::expr::ExprVisitor;
 use crate::expr::Stmt;
 use crate::expr::StmtKind;
 use crate::expr::StmtVisitor;
+use crate::report::CalleeTypeError;
 use crate::token::TokenKind;
 use crate::value::Value;
 
@@ -112,6 +113,22 @@ impl<'a> ExprVisitor<Value> for Interpreter<'a> {
                     self.visit_expr(env, right)
                 }
             }
+            ExprKind::Call { callee, arguments } => {
+                let callee = self.visit_expr(env, callee)?;
+                let arguments = arguments
+                    .into_iter()
+                    .map(|e| self.visit_expr(env, e))
+                    .collect::<Result<Vec<_>, _>>()?;
+
+                match callee {
+                    Value::Function(f) => f.run(env, arguments),
+                    _ => Err(CalleeTypeError {
+                        span: expr.span.into(),
+                        src: self.source.to_string(),
+                    }
+                    .into()),
+                }
+            }
         }
     }
 }
@@ -127,7 +144,7 @@ impl<'a> StmtVisitor<Value> for Interpreter<'a> {
                 println!("{}", value);
                 Ok(Value::Nil)
             }
-            StmtKind::Var { name, initializer } => {
+            StmtKind::Let { name, initializer } => {
                 let value = match initializer {
                     Some(expr) => self.visit_expr(env, expr)?,
                     None => Value::Nil,

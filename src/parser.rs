@@ -149,6 +149,40 @@ impl<'a> Parser<'a> {
         .into())
     }
 
+    fn finish_call(&mut self, start: usize, callee: Box<Expr>) -> Result<Box<Expr>> {
+        let mut arguments = Vec::new();
+        if self.peek_force()?.kind != TokenKind::RightParen {
+            loop {
+                arguments.push(*self.expression()?);
+                if self.next_is(|k| k == TokenKind::Comma).is_none() {
+                    break;
+                }
+            }
+        }
+
+        self.consume(TokenKind::RightParen)?;
+
+        Ok(Box::new(Expr {
+            kind: ExprKind::Call { callee, arguments },
+            span: self.span(start),
+        }))
+    }
+
+    fn call(&mut self) -> Result<Box<Expr>> {
+        let start = self.current;
+        let mut expr = self.primary()?;
+
+        loop {
+            if self.next_is(|k| k == TokenKind::LeftParen).is_some() {
+                expr = self.finish_call(start, expr)?;
+            } else {
+                break;
+            }
+        };
+
+        Ok(expr)
+    }
+
     fn unary(&mut self) -> Result<Box<Expr>> {
         let start = self.current;
         if let Some(op) = self.next_is(|a| matches!(a, TokenKind::Bang | TokenKind::Minus)) {
@@ -160,7 +194,7 @@ impl<'a> Parser<'a> {
                 span: self.span(start),
             }))
         } else {
-            self.primary()
+            self.call()
         }
     }
 
@@ -437,8 +471,6 @@ impl<'a> Parser<'a> {
             })
         }
 
-        println!("{:#?}", body);
-
         Ok(body)
     }
 
@@ -524,7 +556,7 @@ impl<'a> Parser<'a> {
         }
 
         Ok(Box::new(Stmt {
-            kind: StmtKind::Var { name, initializer },
+            kind: StmtKind::Let { name, initializer },
             span: self.span(start),
         }))
     }
