@@ -1,6 +1,6 @@
 use std::cell::RefCell;
-use std::rc::Rc;
 use std::hash::{Hash, Hasher};
+use std::rc::Rc;
 
 use crate::env::Env;
 use crate::token::{Span, Token};
@@ -10,7 +10,7 @@ use crate::value::Value;
 pub enum ExprKind {
     Assign {
         name: String,
-        expr: Box<Expr>,
+        value: Box<Expr>,
     },
     Binary {
         left: Box<Expr>,
@@ -22,7 +22,7 @@ pub enum ExprKind {
         args: Vec<Expr>,
     },
     Grouping {
-        expr: Box<Expr>,
+        value: Box<Expr>,
     },
     Literal {
         value: Value,
@@ -45,7 +45,7 @@ pub enum ExprKind {
 pub struct Expr {
     pub kind: ExprKind,
     pub span: Span,
-    pub id: usize
+    pub id: usize,
 }
 
 impl Hash for Expr {
@@ -72,9 +72,6 @@ pub enum StmtKind {
         then_branch: Box<Stmt>,
         else_branch: Option<Box<Stmt>>,
     },
-    Print {
-        expr: Box<Expr>,
-    },
     Return {
         expr: Option<Box<Expr>>,
     },
@@ -92,7 +89,7 @@ pub enum StmtKind {
 pub struct Stmt {
     pub kind: StmtKind,
     pub span: Span,
-    pub id: usize
+    pub id: usize,
 }
 
 impl Hash for Stmt {

@@ -57,7 +57,7 @@ fn visit_value(_: &Rc<RefCell<Ctx>>, value: &Value) -> Result<Value, RuntimeErro
 
 fn visit_expr(ctx: &Rc<RefCell<Ctx>>, expr: &Expr) -> Result<Value, RuntimeError> {
     match &expr.kind {
-        ExprKind::Grouping { expr } => visit_expr(ctx, expr),
+        ExprKind::Grouping { value } => visit_expr(ctx, value),
         ExprKind::Literal { value } => visit_value(ctx, value),
         ExprKind::Unary { op, right } => {
             let value = visit_expr(ctx, right)?;
@@ -88,10 +88,9 @@ fn visit_expr(ctx: &Rc<RefCell<Ctx>>, expr: &Expr) -> Result<Value, RuntimeError
             .borrow()
             .get(expr, name)
             .map_err(|e| e.into_report(&expr.span))?),
-        ExprKind::Assign { name, expr: value } => {
+        ExprKind::Assign { name, value } => {
             let value = visit_expr(ctx, value)?;
-            ctx
-            .borrow_mut()
+            ctx.borrow_mut()
                 .assign(expr, name.clone(), value.clone())
                 .map_err(|e| e.into_report(&expr.span))?;
             Ok(value)
@@ -130,11 +129,6 @@ fn visit_expr(ctx: &Rc<RefCell<Ctx>>, expr: &Expr) -> Result<Value, RuntimeError
 fn visit_stmt(ctx: &Rc<RefCell<Ctx>>, stmt: &Stmt) -> Result<Value, RuntimeError> {
     match &stmt.kind {
         StmtKind::Expression { expr } => visit_expr(ctx, expr),
-        StmtKind::Print { expr } => {
-            let value = visit_expr(ctx, expr)?;
-            println!("{}", value);
-            Ok(Value::Nil)
-        }
         StmtKind::Let { name, initializer } => {
             let value = match initializer {
                 Some(expr) => visit_expr(ctx, expr)?,

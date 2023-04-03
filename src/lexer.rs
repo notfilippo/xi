@@ -211,7 +211,7 @@ impl<'a> Lexer<'a> {
 
     fn scan_identifier(&mut self) -> Result<()> {
         while let Some(c) = self.peek() {
-            if !c.is_ascii_alphanumeric() {
+            if !(c.is_ascii_alphanumeric() || c == &'_') {
                 break;
             }
             self.next();
@@ -229,7 +229,6 @@ impl<'a> Lexer<'a> {
             "if" => self.emit(TokenKind::If, None),
             "nil" => self.emit(TokenKind::Nil, None),
             "or" => self.emit(TokenKind::Or, None),
-            "print" => self.emit(TokenKind::Print, None),
             "return" => self.emit(TokenKind::Return, None),
             "super" => self.emit(TokenKind::Super, None),
             "this" => self.emit(TokenKind::This, None),

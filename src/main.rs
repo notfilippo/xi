@@ -15,6 +15,7 @@ use std::{
     fs,
     path::{Path, PathBuf},
     rc::Rc,
+    time::SystemTime,
 };
 
 use anyhow::Context;
@@ -24,8 +25,10 @@ use miette::Result;
 use rustyline::{error::ReadlineError, DefaultEditor};
 
 use crate::{
+    context::Ctx,
     interpreter::{interpret, RuntimeError},
-    lexer::Lexer, resolver::Resolver, context::Ctx,
+    lexer::Lexer,
+    resolver::Resolver,
 };
 use crate::{parser::Parser, value::Value};
 
@@ -97,7 +100,13 @@ fn repl() -> anyhow::Result<()> {
 
 fn file(path: &Path) -> anyhow::Result<()> {
     let source = fs::read_to_string(path)?;
+
+    let start = SystemTime::now();
     let result = run(source, &Env::global());
+    let end = SystemTime::now();
+    let duration = end.duration_since(start).unwrap();
+    println!("Execution {} ms", duration.as_millis());
+
     if let Err(err) = result {
         println!("{:?}", err);
     }

@@ -1,26 +1,14 @@
-fn makeCounter() {
-  let i = 0;
-  fn count() {
-    i = i + 1;
-    print i;
-  }
+let a = 0;
+let b = 1;
+let tmp;
 
-  return count;
+let N = 10000;
+
+print("First", N, "numbers of the fibonacci sequence");
+
+for (let i = 0; i < N; i = i + 1) {
+    println(a);
+    tmp = b;
+    b = a + b;
+    a = tmp;
 }
-
-let counter = makeCounter();
-counter();
-counter();
-counter();
-counter();
-counter();
-counter();
-counter();
-counter();
-counter();
-counter();
-counter();
-counter();
-counter();
-
-return "True";

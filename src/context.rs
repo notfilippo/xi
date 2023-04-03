@@ -2,8 +2,9 @@ use std::{cell::RefCell, rc::Rc};
 
 use crate::{
     env::{Env, EnvError},
+    expr::Expr,
     resolver::Resolver,
-    value::Value, expr::Expr,
+    value::Value,
 };
 
 #[derive(Debug)]
@@ -18,7 +19,7 @@ impl Ctx {
         Self {
             env: env.clone(),
             resolver,
-            size: 0
+            size: 0,
         }
     }
 
@@ -26,7 +27,7 @@ impl Ctx {
         Rc::new(RefCell::new(Self {
             env: Env::with_parent(&ctx.borrow().env),
             resolver: ctx.borrow().resolver.clone(),
-            size: ctx.borrow().size + 1
+            size: ctx.borrow().size + 1,
         }))
     }
 

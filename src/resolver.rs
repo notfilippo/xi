@@ -68,7 +68,7 @@ impl Resolver {
 
                 self.resolve_local(expr.id, name)
             }
-            ExprKind::Assign { name, expr: value } => {
+            ExprKind::Assign { name, value } => {
                 self.visit_expr(value)?;
                 self.resolve_local(expr.id, name)
             }
@@ -82,8 +82,8 @@ impl Resolver {
                     self.visit_expr(arg)?;
                 }
             }
-            ExprKind::Grouping { expr } => {
-                self.visit_expr(expr)?;
+            ExprKind::Grouping { value } => {
+                self.visit_expr(value)?;
             }
             ExprKind::Literal { value: _ } => {}
             ExprKind::Logical { left, op: _, right } => {
@@ -137,10 +137,9 @@ impl Resolver {
                 self.visit_expr(cond)?;
                 self.visit_stmt(then_branch)?;
                 if let Some(else_branch) = else_branch {
-                    self.visit_stmt(&else_branch)?;
+                    self.visit_stmt(else_branch)?;
                 }
             }
-            StmtKind::Print { expr } => self.visit_expr(expr)?,
             StmtKind::Return { expr } => {
                 if let Some(expr) = expr {
                     self.visit_expr(expr)?;

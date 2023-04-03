@@ -12,6 +12,9 @@ use crate::{
     value::Value,
 };
 
+/*
+*/
+
 pub trait Function: std::fmt::Debug {
     fn call(&self, env: &Rc<RefCell<Ctx>>, args: Vec<Value>) -> Result<Value, RuntimeError> {
         match self.run(env, args) {
@@ -59,6 +62,38 @@ impl Function for TimeBuiltin {
             .expect("Time went backwards");
 
         Ok(Value::Literal(Literal::Integer(epoch.as_nanos().into())))
+    }
+
+    fn arity(&self) -> usize {
+        0
+    }
+}
+
+#[derive(Debug)]
+pub struct PrintBuiltin;
+
+impl Function for PrintBuiltin {
+    fn run(&self, _: &Rc<RefCell<Ctx>>, args: Vec<Value>) -> Result<Value, RuntimeError> {
+        let strings = args.into_iter().map(|v| v.to_string()).collect::<Vec<_>>();
+        print!("{}", strings.join(" "));
+
+        Ok(Value::Nil)
+    }
+
+    fn arity(&self) -> usize {
+        0
+    }
+}
+
+#[derive(Debug)]
+pub struct PrintlnBuiltin;
+
+impl Function for PrintlnBuiltin {
+    fn run(&self, _: &Rc<RefCell<Ctx>>, args: Vec<Value>) -> Result<Value, RuntimeError> {
+        let strings = args.into_iter().map(|v| v.to_string()).collect::<Vec<_>>();
+        println!("{}", strings.join(" "));
+
+        Ok(Value::Nil)
     }
 
     fn arity(&self) -> usize {

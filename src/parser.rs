@@ -147,10 +147,10 @@ impl<'a> Parser<'a> {
         }
 
         if self.next_is(|k| k == TokenKind::LeftParen).is_some() {
-            let expr = self.expression()?;
+            let value = self.expression()?;
             self.consume(TokenKind::RightParen)?;
             return Ok(Box::new(Expr {
-                kind: ExprKind::Grouping { expr },
+                kind: ExprKind::Grouping { value },
                 span: self.span(start),
 
                 id: self.next_id(),
@@ -354,14 +354,14 @@ impl<'a> Parser<'a> {
 
     fn assignment(&mut self) -> Result<Box<Expr>> {
         let start = self.current;
-        let to = self.or()?;
+        let expr = self.or()?;
 
         if self.next_is(|k| k == TokenKind::Equal).is_some() {
-            let expr = self.assignment()?;
+            let value = self.assignment()?;
 
-            if let ExprKind::Variable { name } = to.kind {
+            if let ExprKind::Variable { name } = expr.kind {
                 Ok(Box::new(Expr {
-                    kind: ExprKind::Assign { name, expr },
+                    kind: ExprKind::Assign { name, value },
                     span: self.span(start),
 
                     id: self.next_id(),
@@ -373,7 +373,7 @@ impl<'a> Parser<'a> {
                 .into())
             }
         } else {
-            Ok(to)
+            Ok(expr)
         }
     }
 
@@ -395,7 +395,6 @@ impl<'a> Parser<'a> {
                     | TokenKind::For
                     | TokenKind::If
                     | TokenKind::While
-                    | TokenKind::Print
                     | TokenKind::Return
             ) {
                 break;
@@ -515,22 +514,6 @@ impl<'a> Parser<'a> {
         Ok(body)
     }
 
-    fn print_statement(&mut self) -> Result<Box<Stmt>> {
-        let start = self.current - 1;
-        let expr = self.expression()?;
-
-        if self.peek().is_some() {
-            self.consume(TokenKind::Semicolon)?;
-        }
-
-        Ok(Box::new(Stmt {
-            kind: StmtKind::Print { expr },
-            span: self.span(start),
-
-            id: self.next_id(),
-        }))
-    }
-
     fn return_statement(&mut self) -> Result<Box<Stmt>> {
         let start = self.current - 1;
         let expr = if self.peek().is_some() {
@@ -597,8 +580,6 @@ impl<'a> Parser<'a> {
             self.for_statement()
         } else if self.next_is(|k| k == TokenKind::If).is_some() {
             self.if_statement()
-        } else if self.next_is(|k| k == TokenKind::Print).is_some() {
-            self.print_statement()
         } else if self.next_is(|k| k == TokenKind::Return).is_some() {
             self.return_statement()
         } else if self.next_is(|k| k == TokenKind::While).is_some() {
