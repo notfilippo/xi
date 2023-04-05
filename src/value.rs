@@ -1,3 +1,4 @@
+use std::hash::{Hash, Hasher};
 use std::{
     cell::RefCell,
     fmt::Display,
@@ -10,11 +11,41 @@ use rug::{integer::TryFromIntegerError, Float, Integer};
 use thiserror::Error;
 
 use crate::{
+    dict::Dict,
     function::Function,
     list::List,
     report::UnsupportedOperation,
     token::{Literal, Span},
 };
+
+#[derive(Debug, Clone)]
+pub struct ValueKey(pub Value);
+
+impl Eq for ValueKey {}
+
+impl PartialEq for ValueKey {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+
+impl Hash for ValueKey {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        match &self.0 {
+            Value::True | Value::False | Value::Nil => core::mem::discriminant(&self.0).hash(state),
+            Value::Literal(Literal::Identifier(value)) => value.hash(state),
+            Value::Literal(Literal::String(value)) => value.hash(state),
+            Value::Literal(Literal::Integer(value)) => value.hash(state),
+            _ => panic!("unsupported hashing"),
+        }
+    }
+}
+
+impl Display for ValueKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
 
 #[derive(Debug, Clone)]
 pub enum Value {
@@ -24,6 +55,7 @@ pub enum Value {
     Literal(Literal),
     Function(Rc<dyn Function>),
     List(Rc<RefCell<List>>),
+    Dict(Rc<RefCell<Dict>>),
 }
 
 #[derive(Error, Debug)]
@@ -330,6 +362,7 @@ impl Display for Value {
             Self::Literal(value) => Display::fmt(&value, f),
             Self::Function(value) => Display::fmt(&value, f),
             Self::List(value) => Display::fmt(&value.borrow(), f),
+            Self::Dict(value) => Display::fmt(&value.borrow(), f),
         }
     }
 }

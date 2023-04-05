@@ -239,6 +239,31 @@ impl<'a> Parser<'a> {
         }))
     }
 
+    fn dict(&mut self) -> Result<Box<Expr>> {
+        let start = self.current;
+
+        let mut items = Vec::new();
+        if self.peek_force()?.kind != TokenKind::RightBrace {
+            loop {
+                let left = self.expression()?;
+                self.consume(TokenKind::Colon)?;
+                let right = self.expression()?;
+                items.push((*left, *right));
+                if self.next_is(|k| k == TokenKind::Comma).is_none() {
+                    break;
+                }
+            }
+        }
+
+        self.consume(TokenKind::RightBrace)?;
+
+        Ok(Box::new(Expr {
+            kind: ExprKind::Dict { items },
+            span: self.span(start),
+            id: self.next_id(),
+        }))
+    }
+
     fn unary(&mut self) -> Result<Box<Expr>> {
         let start = self.current;
         if let Some(op) = self.next_is(|a| matches!(a, TokenKind::Bang | TokenKind::Minus)) {
@@ -253,6 +278,8 @@ impl<'a> Parser<'a> {
             }))
         } else if let Some(_op) = self.next_is(|a| matches!(a, TokenKind::LeftSquare)) {
             self.list()
+        } else if let Some(_op) = self.next_is(|a| matches!(a, TokenKind::LeftBrace)) {
+            self.dict()
         } else {
             self.call()
         }

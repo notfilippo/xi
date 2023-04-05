@@ -1,16 +1,17 @@
-mod list;
+mod builtin;
 mod context;
+mod dict;
 mod env;
 mod expr;
 mod function;
 mod interpreter;
 mod lexer;
+mod list;
 mod parser;
 mod report;
 mod resolver;
 mod token;
 mod value;
-mod builtin;
 
 use std::{
     cell::RefCell,

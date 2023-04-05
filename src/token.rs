@@ -1,3 +1,5 @@
+use std::hash::Hash;
+
 use miette::SourceSpan;
 
 #[derive(Default, Debug, Clone, Copy, Hash)]
@@ -63,6 +65,7 @@ pub enum TokenKind {
     Dot,
     Minus,
     Plus,
+    Colon,
     Semicolon,
     Slash,
     Star,

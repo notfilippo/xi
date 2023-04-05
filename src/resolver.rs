@@ -118,6 +118,12 @@ impl Resolver {
                 self.visit_expr(index)?;
                 self.visit_expr(value)?;
             },
+            ExprKind::Dict { items } => {
+                for (left, right) in items {
+                    self.visit_expr(left)?;
+                    self.visit_expr(right)?;
+                }
+            },
         }
 
         Ok(())

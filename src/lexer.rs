@@ -251,6 +251,7 @@ impl<'a> Lexer<'a> {
             '.' => self.emit(TokenKind::Dot, None),
             '-' => self.emit(TokenKind::Minus, None),
             '+' => self.emit(TokenKind::Plus, None),
+            ':' => self.emit(TokenKind::Colon, None),
             ';' => self.emit(TokenKind::Semicolon, None),
             '*' => self.emit(TokenKind::Star, None),
             '/' => self.emit(TokenKind::Slash, None),

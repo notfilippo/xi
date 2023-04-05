@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::ops::Add;
 use std::ops::Div;
 use std::ops::Mul;
@@ -9,6 +10,7 @@ use std::rc::Rc;
 use miette::Report;
 
 use crate::context::Ctx;
+use crate::dict::Dict;
 use crate::expr::Expr;
 use crate::expr::ExprKind;
 use crate::expr::Stmt;
@@ -22,6 +24,7 @@ use crate::report::ListTypeError;
 use crate::token::Literal;
 use crate::token::TokenKind;
 use crate::value::Value;
+use crate::value::ValueKey;
 
 pub enum RuntimeError {
     Report(Report),
@@ -160,6 +163,17 @@ fn visit_expr(ctx: &Rc<RefCell<Ctx>>, expr: &Expr) -> Result<Value, RuntimeError
             let list = List { items };
             Ok(Value::List(Rc::new(RefCell::new(list))))
         }
+        ExprKind::Dict { items } => {
+            let mut i = HashMap::new();
+            for (left, right) in items {
+                let left = visit_expr(ctx, left)?;
+                let right = visit_expr(ctx, right)?;
+                i.insert(ValueKey(left), right);
+            }
+
+            let list = Dict { items: i };
+            Ok(Value::Dict(Rc::new(RefCell::new(list))))
+        }
         ExprKind::GetIndex { obj, index } => {
             let this = visit_expr(ctx, obj)?;
             match this {
@@ -177,6 +191,10 @@ fn visit_expr(ctx: &Rc<RefCell<Ctx>>, expr: &Expr) -> Result<Value, RuntimeError
                             .into(),
                         )),
                     }
+                }
+                Value::Dict(dict) => {
+                    let index = ValueKey(visit_expr(ctx, index)?);
+                    Ok(dict.borrow().items.get(&index).unwrap().clone())
                 }
                 _ => Err(RuntimeError::Report(
                     ListTypeError {
@@ -205,6 +223,12 @@ fn visit_expr(ctx: &Rc<RefCell<Ctx>>, expr: &Expr) -> Result<Value, RuntimeError
                             .into(),
                         )),
                     }
+                }
+                Value::Dict(dict) => {
+                    let value = visit_expr(ctx, value)?;
+                    let index = ValueKey(visit_expr(ctx, index)?);
+                    dict.borrow_mut().items.insert(index, value.clone());
+                    Ok(value)
                 }
                 _ => Err(RuntimeError::Report(
                     ListTypeError {

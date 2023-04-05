@@ -36,6 +36,9 @@ pub enum ExprKind {
     List {
         items: Vec<Expr>,
     },
+    Dict {
+        items: Vec<(Expr, Expr)>,
+    },
     Get {
         obj: Box<Expr>,
         name: String,
