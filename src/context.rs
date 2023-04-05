@@ -2,7 +2,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use crate::{
     env::{Env, EnvError},
-    expr::Expr,
+    expr::Identifiable,
     resolver::Resolver,
     value::Value,
 };
@@ -31,17 +31,22 @@ impl Ctx {
         }))
     }
 
-    pub fn define(&mut self, name: String, value: Value) {
+    pub fn define(&mut self, name: &str, value: Value) {
         self.env.borrow_mut().define(name, value);
     }
 
-    pub fn assign(&mut self, expr: &Expr, name: String, value: Value) -> Result<(), EnvError> {
-        let distance = *self.resolver.locals.get(&expr.id).unwrap_or(&self.size); // TODO: ??
+    pub fn assign<I: Identifiable>(
+        &mut self,
+        i: &I,
+        name: &str,
+        value: Value,
+    ) -> Result<(), EnvError> {
+        let distance = *self.resolver.locals.get(i.id()).unwrap_or(&self.size); // TODO: ??
         self.env.borrow_mut().assign(distance, name, value)
     }
 
-    pub fn get(&self, expr: &Expr, name: &String) -> Result<Value, EnvError> {
-        let distance = *self.resolver.locals.get(&expr.id).unwrap_or(&self.size); // TODO: ??
+    pub fn get<I: Identifiable>(&self, i: &I, name: &str) -> Result<Value, EnvError> {
+        let distance = *self.resolver.locals.get(i.id()).unwrap_or(&self.size); // TODO: ??
         self.env.borrow().get(distance, name)
     }
 }

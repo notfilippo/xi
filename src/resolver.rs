@@ -93,6 +93,31 @@ impl Resolver {
             ExprKind::Unary { op: _, right } => {
                 self.visit_expr(right)?;
             }
+            ExprKind::Get { obj, name: _ } => {
+                self.visit_expr(obj)?;
+            }
+            ExprKind::Set {
+                obj,
+                name: _,
+                value,
+            } => {
+                self.visit_expr(obj)?;
+                self.visit_expr(value)?;
+            }
+            ExprKind::List { items } => {
+                for item in items {
+                    self.visit_expr(item)?;
+                }
+            }
+            ExprKind::GetIndex { obj, index } => {
+                self.visit_expr(obj)?;
+                self.visit_expr(index)?;
+            },
+            ExprKind::SetIndex { obj, index, value } => {
+                self.visit_expr(obj)?;
+                self.visit_expr(index)?;
+                self.visit_expr(value)?;
+            },
         }
 
         Ok(())

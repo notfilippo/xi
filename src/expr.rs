@@ -1,10 +1,13 @@
 use std::cell::RefCell;
-use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 
 use crate::env::Env;
 use crate::token::{Span, Token};
 use crate::value::Value;
+
+pub trait Identifiable {
+    fn id(&self) -> &usize;
+}
 
 #[derive(Debug)]
 pub enum ExprKind {
@@ -21,6 +24,22 @@ pub enum ExprKind {
         callee: Box<Expr>,
         args: Vec<Expr>,
     },
+    GetIndex {
+        obj: Box<Expr>,
+        index: Box<Expr>,
+    },
+    SetIndex {
+        obj: Box<Expr>,
+        index: Box<Expr>,
+        value: Box<Expr>,
+    },
+    List {
+        items: Vec<Expr>,
+    },
+    Get {
+        obj: Box<Expr>,
+        name: String,
+    },
     Grouping {
         value: Box<Expr>,
     },
@@ -31,6 +50,11 @@ pub enum ExprKind {
         left: Box<Expr>,
         op: Token,
         right: Box<Expr>,
+    },
+    Set {
+        obj: Box<Expr>,
+        name: String,
+        value: Box<Expr>,
     },
     Unary {
         op: Token,
@@ -48,9 +72,9 @@ pub struct Expr {
     pub id: usize,
 }
 
-impl Hash for Expr {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.span.hash(state);
+impl Identifiable for Expr {
+    fn id(&self) -> &usize {
+        &self.id
     }
 }
 
@@ -92,9 +116,9 @@ pub struct Stmt {
     pub id: usize,
 }
 
-impl Hash for Stmt {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.span.hash(state);
+impl Identifiable for Stmt {
+    fn id(&self) -> &usize {
+        &self.id
     }
 }
 

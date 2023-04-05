@@ -7,13 +7,7 @@ use std::{
 use miette::Report;
 use thiserror::Error;
 
-use crate::{
-    function::{PrintBuiltin, PrintlnBuiltin, TimeBuiltin},
-    report::UndefinedValue,
-    resolver::Resolver,
-    token::Span,
-    value::Value,
-};
+use crate::{builtin::*, report::UndefinedValue, resolver::Resolver, token::Span, value::Value};
 
 #[derive(Default, Clone, Debug)]
 pub struct Env {
@@ -33,15 +27,10 @@ impl Env {
 
     pub fn global() -> Rc<RefCell<Self>> {
         let mut global = Self::default();
-        global.define("time".to_string(), Value::Function(Rc::new(TimeBuiltin {})));
-        global.define(
-            "print".to_string(),
-            Value::Function(Rc::new(PrintBuiltin {})),
-        );
-        global.define(
-            "println".to_string(),
-            Value::Function(Rc::new(PrintlnBuiltin {})),
-        );
+        global.define("time", Value::Function(Rc::new(TimeBuiltin {})));
+        global.define("print", Value::Function(Rc::new(PrintBuiltin {})));
+        global.define("println", Value::Function(Rc::new(PrintlnBuiltin {})));
+        global.define("len", Value::Function(Rc::new(LenBuiltin {})));
         Rc::new(RefCell::new(global))
     }
 }
@@ -64,13 +53,13 @@ impl EnvError {
 }
 
 impl Env {
-    pub fn define(&mut self, name: String, value: Value) {
-        self.values.insert(name, value);
+    pub fn define(&mut self, name: &str, value: Value) {
+        self.values.insert(name.to_string(), value);
     }
 
-    pub fn assign(&mut self, distance: usize, name: String, value: Value) -> Result<(), EnvError> {
+    pub fn assign(&mut self, distance: usize, name: &str, value: Value) -> Result<(), EnvError> {
         if distance == 0 {
-            if let Entry::Occupied(mut e) = self.values.entry(name.clone()) {
+            if let Entry::Occupied(mut e) = self.values.entry(name.to_string()) {
                 e.insert(value);
                 return Ok(());
             }
@@ -83,7 +72,7 @@ impl Env {
         }
     }
 
-    pub fn get(&self, distance: usize, name: &String) -> Result<Value, EnvError> {
+    pub fn get(&self, distance: usize, name: &str) -> Result<Value, EnvError> {
         if distance == 0 {
             if let Some(value) = self.values.get(name) {
                 return Ok(value.clone());

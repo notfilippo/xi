@@ -35,7 +35,7 @@ pub struct UnterminatedSequence {
 
 #[derive(Error, Debug, Diagnostic)]
 #[error("unexpected token")]
-#[diagnostic(code(ix::lexer::unexpected_token))]
+#[diagnostic(code(ix::parser::unexpected_token))]
 pub struct UnexpectedToken {
     #[label("here")]
     pub span: SourceSpan,
@@ -76,6 +76,14 @@ pub struct UndefinedValue {
 }
 
 #[derive(Error, Debug, Diagnostic)]
+#[error("undefined property")]
+#[diagnostic(code(ix::interpreter::undefined_property))]
+pub struct UndefinedProperty {
+    #[label("here")]
+    pub span: SourceSpan,
+}
+
+#[derive(Error, Debug, Diagnostic)]
 #[error("invalid assignment target")]
 #[diagnostic(code(ix::interpreter::invalid_assignment_target))]
 pub struct InvalidAssignmentTarget {
@@ -87,6 +95,30 @@ pub struct InvalidAssignmentTarget {
 #[error("only functions and classes can be called")]
 #[diagnostic(code(ix::interpreter::callee_type_error))]
 pub struct CalleeTypeError {
+    #[label("here")]
+    pub span: SourceSpan,
+}
+
+#[derive(Error, Debug, Diagnostic)]
+#[error("only instances have properties")]
+#[diagnostic(code(ix::interpreter::instance_type_error))]
+pub struct InstanceTypeError {
+    #[label("here")]
+    pub span: SourceSpan,
+}
+
+#[derive(Error, Debug, Diagnostic)]
+#[error("only lists can be indexed")]
+#[diagnostic(code(ix::interpreter::list_type_error))]
+pub struct ListTypeError {
+    #[label("here")]
+    pub span: SourceSpan,
+}
+
+#[derive(Error, Debug, Diagnostic)]
+#[error("lists can only be indexed with integers")]
+#[diagnostic(code(ix::interpreter::invalid_index_error))]
+pub struct InvalidIndexError {
     #[label("here")]
     pub span: SourceSpan,
 }

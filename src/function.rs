@@ -1,21 +1,17 @@
 use std::{
     cell::RefCell,
+    fmt::Display,
     rc::Rc,
-    time::{SystemTime, UNIX_EPOCH},
 };
 
 use crate::{
     context::Ctx,
     expr::Stmt,
     interpreter::{interpret, RuntimeError},
-    token::Literal,
     value::Value,
 };
 
-/*
-*/
-
-pub trait Function: std::fmt::Debug {
+pub trait Function: std::fmt::Debug + std::fmt::Display {
     fn call(&self, env: &Rc<RefCell<Ctx>>, args: Vec<Value>) -> Result<Value, RuntimeError> {
         match self.run(env, args) {
             Ok(value) => Ok(value),
@@ -28,19 +24,32 @@ pub trait Function: std::fmt::Debug {
     fn arity(&self) -> usize;
 }
 
-#[derive(Debug)]
-pub struct Simple {
+#[derive(Debug, Clone)]
+pub struct SimpleFunction {
+    pub name: String,
     pub params: Rc<Vec<String>>,
     pub body: Rc<Vec<Stmt>>,
     pub closure: Rc<RefCell<Ctx>>,
 }
 
-impl Function for Simple {
+impl From<SimpleFunction> for Value {
+    fn from(val: SimpleFunction) -> Self {
+        Value::Function(Rc::new(val))
+    }
+}
+
+impl Display for SimpleFunction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "({})", self.name)
+    }
+}
+
+impl Function for SimpleFunction {
     fn run(&self, _: &Rc<RefCell<Ctx>>, args: Vec<Value>) -> Result<Value, RuntimeError> {
         let new_env = Ctx::with_parent(&self.closure);
 
         for (i, name) in self.params.iter().enumerate() {
-            new_env.borrow_mut().define(name.clone(), args[i].clone())
+            new_env.borrow_mut().define(name, args[i].clone())
         }
 
         interpret(&new_env, &self.body)
@@ -48,55 +57,5 @@ impl Function for Simple {
 
     fn arity(&self) -> usize {
         self.params.len()
-    }
-}
-
-#[derive(Debug)]
-pub struct TimeBuiltin;
-
-impl Function for TimeBuiltin {
-    fn run(&self, _: &Rc<RefCell<Ctx>>, _: Vec<Value>) -> Result<Value, RuntimeError> {
-        let time = SystemTime::now();
-        let epoch = time
-            .duration_since(UNIX_EPOCH)
-            .expect("Time went backwards");
-
-        Ok(Value::Literal(Literal::Integer(epoch.as_nanos().into())))
-    }
-
-    fn arity(&self) -> usize {
-        0
-    }
-}
-
-#[derive(Debug)]
-pub struct PrintBuiltin;
-
-impl Function for PrintBuiltin {
-    fn run(&self, _: &Rc<RefCell<Ctx>>, args: Vec<Value>) -> Result<Value, RuntimeError> {
-        let strings = args.into_iter().map(|v| v.to_string()).collect::<Vec<_>>();
-        print!("{}", strings.join(" "));
-
-        Ok(Value::Nil)
-    }
-
-    fn arity(&self) -> usize {
-        0
-    }
-}
-
-#[derive(Debug)]
-pub struct PrintlnBuiltin;
-
-impl Function for PrintlnBuiltin {
-    fn run(&self, _: &Rc<RefCell<Ctx>>, args: Vec<Value>) -> Result<Value, RuntimeError> {
-        let strings = args.into_iter().map(|v| v.to_string()).collect::<Vec<_>>();
-        println!("{}", strings.join(" "));
-
-        Ok(Value::Nil)
-    }
-
-    fn arity(&self) -> usize {
-        0
     }
 }

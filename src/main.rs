@@ -1,3 +1,4 @@
+mod list;
 mod context;
 mod env;
 mod expr;
@@ -9,6 +10,7 @@ mod report;
 mod resolver;
 mod token;
 mod value;
+mod builtin;
 
 use std::{
     cell::RefCell,

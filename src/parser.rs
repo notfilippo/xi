@@ -181,7 +181,6 @@ impl<'a> Parser<'a> {
         Ok(Box::new(Expr {
             kind: ExprKind::Call { callee, args },
             span: self.span(start),
-
             id: self.next_id(),
         }))
     }
@@ -193,12 +192,51 @@ impl<'a> Parser<'a> {
         loop {
             if self.next_is(|k| k == TokenKind::LeftParen).is_some() {
                 expr = self.finish_call(start, expr)?;
+            } else if self.next_is(|k| k == TokenKind::LeftSquare).is_some() {
+                let index = self.expression()?;
+                self.consume(TokenKind::RightSquare)?;
+
+                expr = Box::new(Expr {
+                    kind: ExprKind::GetIndex { obj: expr, index },
+                    span: self.span(start),
+                    id: self.next_id(),
+                })
+            } else if self.next_is(|k| k == TokenKind::Dot).is_some() {
+                self.consume(TokenKind::Identifier)?;
+                let name = self.previous_identifier();
+                expr = Box::new(Expr {
+                    kind: ExprKind::Get { obj: expr, name },
+                    span: self.span(start),
+                    id: self.next_id(),
+                })
             } else {
                 break;
             }
         }
 
         Ok(expr)
+    }
+
+    fn list(&mut self) -> Result<Box<Expr>> {
+        let start = self.current;
+
+        let mut items = Vec::new();
+        if self.peek_force()?.kind != TokenKind::RightSquare {
+            loop {
+                items.push(*self.expression()?);
+                if self.next_is(|k| k == TokenKind::Comma).is_none() {
+                    break;
+                }
+            }
+        }
+
+        self.consume(TokenKind::RightSquare)?;
+
+        Ok(Box::new(Expr {
+            kind: ExprKind::List { items },
+            span: self.span(start),
+            id: self.next_id(),
+        }))
     }
 
     fn unary(&mut self) -> Result<Box<Expr>> {
@@ -213,6 +251,8 @@ impl<'a> Parser<'a> {
 
                 id: self.next_id(),
             }))
+        } else if let Some(_op) = self.next_is(|a| matches!(a, TokenKind::LeftSquare)) {
+            self.list()
         } else {
             self.call()
         }
@@ -359,18 +399,26 @@ impl<'a> Parser<'a> {
         if self.next_is(|k| k == TokenKind::Equal).is_some() {
             let value = self.assignment()?;
 
-            if let ExprKind::Variable { name } = expr.kind {
-                Ok(Box::new(Expr {
+            match expr.kind {
+                ExprKind::Get { obj, name } => Ok(Box::new(Expr {
+                    kind: ExprKind::Set { obj, name, value },
+                    span: self.span(start),
+                    id: self.next_id(),
+                })),
+                ExprKind::Variable { name } => Ok(Box::new(Expr {
                     kind: ExprKind::Assign { name, value },
                     span: self.span(start),
-
                     id: self.next_id(),
-                }))
-            } else {
-                Err(InvalidAssignmentTarget {
+                })),
+                ExprKind::GetIndex { obj, index } => Ok(Box::new(Expr {
+                    kind: ExprKind::SetIndex { obj, index, value },
+                    span: self.span(start),
+                    id: self.next_id(),
+                })),
+                _ => Err(InvalidAssignmentTarget {
                     span: self.span(start).into(),
                 }
-                .into())
+                .into()),
             }
         } else {
             Ok(expr)
@@ -389,8 +437,7 @@ impl<'a> Parser<'a> {
 
             if matches!(
                 self.peek_force()?.kind,
-                TokenKind::Class
-                    | TokenKind::Fn
+                TokenKind::Fn
                     | TokenKind::Let
                     | TokenKind::For
                     | TokenKind::If

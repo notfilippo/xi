@@ -57,6 +57,8 @@ pub enum TokenKind {
     RightParen,
     LeftBrace,
     RightBrace,
+    LeftSquare,
+    RightSquare,
     Comma,
     Dot,
     Minus,
@@ -84,7 +86,6 @@ pub enum TokenKind {
 
     // Keywords.
     And,
-    Class,
     Else,
     False,
     Fn,
@@ -93,8 +94,6 @@ pub enum TokenKind {
     Nil,
     Or,
     Return,
-    Super,
-    This,
     True,
     Let,
     While,

@@ -13,8 +13,13 @@ use crate::expr::Expr;
 use crate::expr::ExprKind;
 use crate::expr::Stmt;
 use crate::expr::StmtKind;
-use crate::function::Simple;
+use crate::function::SimpleFunction;
+use crate::list::List;
 use crate::report::CalleeTypeError;
+use crate::report::InstanceTypeError;
+use crate::report::InvalidIndexError;
+use crate::report::ListTypeError;
+use crate::token::Literal;
 use crate::token::TokenKind;
 use crate::value::Value;
 
@@ -91,7 +96,7 @@ fn visit_expr(ctx: &Rc<RefCell<Ctx>>, expr: &Expr) -> Result<Value, RuntimeError
         ExprKind::Assign { name, value } => {
             let value = visit_expr(ctx, value)?;
             ctx.borrow_mut()
-                .assign(expr, name.clone(), value.clone())
+                .assign(expr, name, value.clone())
                 .map_err(|e| e.into_report(&expr.span))?;
             Ok(value)
         }
@@ -123,6 +128,92 @@ fn visit_expr(ctx: &Rc<RefCell<Ctx>>, expr: &Expr) -> Result<Value, RuntimeError
                 )),
             }
         }
+        ExprKind::Get { obj, name: _ } => {
+            let _this = visit_expr(ctx, obj)?;
+            Err(RuntimeError::Report(
+                InstanceTypeError {
+                    span: expr.span.into(),
+                }
+                .into(),
+            ))
+        }
+        ExprKind::Set {
+            obj,
+            name: _,
+            value,
+        } => {
+            let _this = visit_expr(ctx, obj)?;
+            let _value = visit_expr(ctx, value)?;
+            Err(RuntimeError::Report(
+                InstanceTypeError {
+                    span: expr.span.into(),
+                }
+                .into(),
+            ))
+        }
+        ExprKind::List { items } => {
+            let items = items
+                .iter()
+                .map(|expr| visit_expr(ctx, expr))
+                .collect::<Result<Vec<_>, _>>()?;
+
+            let list = List { items };
+            Ok(Value::List(Rc::new(RefCell::new(list))))
+        }
+        ExprKind::GetIndex { obj, index } => {
+            let this = visit_expr(ctx, obj)?;
+            match this {
+                Value::List(list) => {
+                    let index = visit_expr(ctx, index)?;
+                    match index {
+                        Value::Literal(Literal::Integer(i)) => {
+                            let index: usize = i.try_into().expect("Index too big");
+                            Ok(list.borrow().items.get(index).unwrap().clone())
+                        }
+                        _ => Err(RuntimeError::Report(
+                            InvalidIndexError {
+                                span: expr.span.into(),
+                            }
+                            .into(),
+                        )),
+                    }
+                }
+                _ => Err(RuntimeError::Report(
+                    ListTypeError {
+                        span: expr.span.into(),
+                    }
+                    .into(),
+                )),
+            }
+        }
+        ExprKind::SetIndex { obj, index, value } => {
+            let this = visit_expr(ctx, obj)?;
+            match this {
+                Value::List(list) => {
+                    let index = visit_expr(ctx, index)?;
+                    match index {
+                        Value::Literal(Literal::Integer(i)) => {
+                            let value = visit_expr(ctx, value)?;
+                            let index: usize = i.try_into().expect("Index too big");
+                            list.borrow_mut().items[index] = value.clone();
+                            Ok(value)
+                        }
+                        _ => Err(RuntimeError::Report(
+                            InvalidIndexError {
+                                span: expr.span.into(),
+                            }
+                            .into(),
+                        )),
+                    }
+                }
+                _ => Err(RuntimeError::Report(
+                    ListTypeError {
+                        span: expr.span.into(),
+                    }
+                    .into(),
+                )),
+            }
+        }
     }
 }
 
@@ -135,7 +226,7 @@ fn visit_stmt(ctx: &Rc<RefCell<Ctx>>, stmt: &Stmt) -> Result<Value, RuntimeError
                 None => Value::Nil,
             };
 
-            ctx.borrow_mut().define(name.clone(), value);
+            ctx.borrow_mut().define(name, value);
 
             Ok(Value::Nil)
         }
@@ -167,13 +258,15 @@ fn visit_stmt(ctx: &Rc<RefCell<Ctx>>, stmt: &Stmt) -> Result<Value, RuntimeError
             Ok(Value::Nil)
         }
         StmtKind::Function { name, params, body } => {
-            let function = Value::Function(Rc::new(Simple {
+            let function = SimpleFunction {
+                name: name.clone(),
                 params: params.clone(),
                 body: body.clone(),
                 closure: ctx.clone(),
-            }));
+            };
 
-            ctx.borrow_mut().define(name.clone(), function);
+            ctx.borrow_mut()
+                .define(name, Value::Function(Rc::new(function)));
 
             Ok(Value::Nil)
         }

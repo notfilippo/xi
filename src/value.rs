@@ -1,5 +1,6 @@
 use std::{
-    fmt::{Display, Pointer},
+    cell::RefCell,
+    fmt::Display,
     ops::{Add, Div, Mul, Neg, Not, Sub},
     rc::Rc,
 };
@@ -10,6 +11,7 @@ use thiserror::Error;
 
 use crate::{
     function::Function,
+    list::List,
     report::UnsupportedOperation,
     token::{Literal, Span},
 };
@@ -21,6 +23,7 @@ pub enum Value {
     Nil,
     Literal(Literal),
     Function(Rc<dyn Function>),
+    List(Rc<RefCell<List>>),
 }
 
 #[derive(Error, Debug)]
@@ -286,6 +289,12 @@ impl From<bool> for Value {
     }
 }
 
+impl From<Rc<dyn Function>> for Value {
+    fn from(value: Rc<dyn Function>) -> Self {
+        Self::Function(value)
+    }
+}
+
 impl ValueError {
     pub fn into_report(self, span: &Span) -> Report {
         match self {
@@ -318,8 +327,9 @@ impl Display for Value {
             Self::True => write!(f, "true"),
             Self::False => write!(f, "false"),
             Self::Nil => write!(f, "nil"),
-            Self::Literal(value) => value.fmt(f),
-            Self::Function(value) => value.fmt(f),
+            Self::Literal(value) => Display::fmt(&value, f),
+            Self::Function(value) => Display::fmt(&value, f),
+            Self::List(value) => Display::fmt(&value.borrow(), f),
         }
     }
 }

@@ -221,7 +221,6 @@ impl<'a> Lexer<'a> {
 
         match literal {
             "and" => self.emit(TokenKind::And, None),
-            "class" => self.emit(TokenKind::Class, None),
             "else" => self.emit(TokenKind::Else, None),
             "false" => self.emit(TokenKind::False, None),
             "fn" => self.emit(TokenKind::Fn, None),
@@ -230,8 +229,6 @@ impl<'a> Lexer<'a> {
             "nil" => self.emit(TokenKind::Nil, None),
             "or" => self.emit(TokenKind::Or, None),
             "return" => self.emit(TokenKind::Return, None),
-            "super" => self.emit(TokenKind::Super, None),
-            "this" => self.emit(TokenKind::This, None),
             "true" => self.emit(TokenKind::True, None),
             "let" => self.emit(TokenKind::Let, None),
             "while" => self.emit(TokenKind::While, None),
@@ -248,6 +245,8 @@ impl<'a> Lexer<'a> {
             ')' => self.emit(TokenKind::RightParen, None),
             '{' => self.emit(TokenKind::LeftBrace, None),
             '}' => self.emit(TokenKind::RightBrace, None),
+            '[' => self.emit(TokenKind::LeftSquare, None),
+            ']' => self.emit(TokenKind::RightSquare, None),
             ',' => self.emit(TokenKind::Comma, None),
             '.' => self.emit(TokenKind::Dot, None),
             '-' => self.emit(TokenKind::Minus, None),
