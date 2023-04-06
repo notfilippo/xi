@@ -1,9 +1,11 @@
+mod dict;
 mod io;
-mod list;
+mod seq;
 mod time;
 
+pub use dict::*;
 pub use io::*;
-pub use list::*;
+pub use seq::*;
 pub use time::*;
 
 macro_rules! builtin {

@@ -108,17 +108,33 @@ pub struct InstanceTypeError {
 }
 
 #[derive(Error, Debug, Diagnostic)]
-#[error("only lists can be indexed")]
+#[error("only lists and dicts can be indexed")]
 #[diagnostic(code(ix::interpreter::list_type_error))]
-pub struct ListTypeError {
+pub struct IndexTypeError {
     #[label("here")]
     pub span: SourceSpan,
 }
 
 #[derive(Error, Debug, Diagnostic)]
-#[error("lists can only be indexed with integers")]
+#[error("lists can only be indexed with integers up to `usize`")]
 #[diagnostic(code(ix::interpreter::invalid_index_error))]
-pub struct InvalidIndexError {
+pub struct ListIndexInvalidError {
+    #[label("here")]
+    pub span: SourceSpan,
+}
+
+#[derive(Error, Debug, Diagnostic)]
+#[error("dict key does not exist")]
+#[diagnostic(code(ix::interpreter::invalid_index_error))]
+pub struct ListIndexOutOfBoundsError {
+    #[label("here")]
+    pub span: SourceSpan,
+}
+
+#[derive(Error, Debug, Diagnostic)]
+#[error("dict key does not exist")]
+#[diagnostic(code(ix::interpreter::invalid_index_error))]
+pub struct DictKeyError {
     #[label("here")]
     pub span: SourceSpan,
 }

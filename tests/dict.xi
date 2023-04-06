@@ -1,10 +1,13 @@
 let a = {"ciao": 1, 3: "banana"};
 
 println(a);
-println(a[3]);
 
-for (let i = 0; i < 100; i = i + 1) {
-    a[i] = i * 2;
+
+# funny iterator...
+
+let v = values(a);
+let k = keys(a);
+
+for (let i = 0; i < len(k); i = i + 1) {
+    println(k[i], v[i]);
 }
-
-println(a);

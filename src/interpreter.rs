@@ -18,9 +18,10 @@ use crate::expr::StmtKind;
 use crate::function::SimpleFunction;
 use crate::list::List;
 use crate::report::CalleeTypeError;
+use crate::report::IndexTypeError;
 use crate::report::InstanceTypeError;
-use crate::report::InvalidIndexError;
-use crate::report::ListTypeError;
+use crate::report::ListIndexInvalidError;
+use crate::report::ListIndexOutOfBoundsError;
 use crate::token::Literal;
 use crate::token::TokenKind;
 use crate::value::Value;
@@ -160,7 +161,7 @@ fn visit_expr(ctx: &Rc<RefCell<Ctx>>, expr: &Expr) -> Result<Value, RuntimeError
                 .map(|expr| visit_expr(ctx, expr))
                 .collect::<Result<Vec<_>, _>>()?;
 
-            let list = List { items };
+            let list = List(items);
             Ok(Value::List(Rc::new(RefCell::new(list))))
         }
         ExprKind::Dict { items } => {
@@ -171,7 +172,7 @@ fn visit_expr(ctx: &Rc<RefCell<Ctx>>, expr: &Expr) -> Result<Value, RuntimeError
                 i.insert(ValueKey(left), right);
             }
 
-            let list = Dict { items: i };
+            let list = Dict(i);
             Ok(Value::Dict(Rc::new(RefCell::new(list))))
         }
         ExprKind::GetIndex { obj, index } => {
@@ -181,11 +182,26 @@ fn visit_expr(ctx: &Rc<RefCell<Ctx>>, expr: &Expr) -> Result<Value, RuntimeError
                     let index = visit_expr(ctx, index)?;
                     match index {
                         Value::Literal(Literal::Integer(i)) => {
-                            let index: usize = i.try_into().expect("Index too big");
-                            Ok(list.borrow().items.get(index).unwrap().clone())
+                            let index: usize = i.try_into().map_err(|_| {
+                                RuntimeError::Report(
+                                    ListIndexInvalidError {
+                                        span: expr.span.into(),
+                                    }
+                                    .into(),
+                                )
+                            })?;
+                            match list.borrow().0.get(index) {
+                                Some(value) => Ok(value.clone()),
+                                None => Err(RuntimeError::Report(
+                                    ListIndexOutOfBoundsError {
+                                        span: expr.span.into(),
+                                    }
+                                    .into(),
+                                )),
+                            }
                         }
                         _ => Err(RuntimeError::Report(
-                            InvalidIndexError {
+                            ListIndexInvalidError {
                                 span: expr.span.into(),
                             }
                             .into(),
@@ -194,10 +210,10 @@ fn visit_expr(ctx: &Rc<RefCell<Ctx>>, expr: &Expr) -> Result<Value, RuntimeError
                 }
                 Value::Dict(dict) => {
                     let index = ValueKey(visit_expr(ctx, index)?);
-                    Ok(dict.borrow().items.get(&index).unwrap().clone())
+                    Ok(dict.borrow().0.get(&index).unwrap().clone())
                 }
                 _ => Err(RuntimeError::Report(
-                    ListTypeError {
+                    IndexTypeError {
                         span: expr.span.into(),
                     }
                     .into(),
@@ -211,13 +227,30 @@ fn visit_expr(ctx: &Rc<RefCell<Ctx>>, expr: &Expr) -> Result<Value, RuntimeError
                     let index = visit_expr(ctx, index)?;
                     match index {
                         Value::Literal(Literal::Integer(i)) => {
-                            let value = visit_expr(ctx, value)?;
-                            let index: usize = i.try_into().expect("Index too big");
-                            list.borrow_mut().items[index] = value.clone();
-                            Ok(value)
+                            let index: usize = i.try_into().map_err(|_| {
+                                RuntimeError::Report(
+                                    ListIndexInvalidError {
+                                        span: expr.span.into(),
+                                    }
+                                    .into(),
+                                )
+                            })?;
+                            match list.borrow_mut().0.get_mut(index) {
+                                Some(prev) => {
+                                    let new = visit_expr(ctx, value)?;
+                                    *prev = new.clone();
+                                    Ok(new)
+                                }
+                                None => Err(RuntimeError::Report(
+                                    ListIndexOutOfBoundsError {
+                                        span: expr.span.into(),
+                                    }
+                                    .into(),
+                                )),
+                            }
                         }
                         _ => Err(RuntimeError::Report(
-                            InvalidIndexError {
+                            ListIndexInvalidError {
                                 span: expr.span.into(),
                             }
                             .into(),
@@ -227,11 +260,11 @@ fn visit_expr(ctx: &Rc<RefCell<Ctx>>, expr: &Expr) -> Result<Value, RuntimeError
                 Value::Dict(dict) => {
                     let value = visit_expr(ctx, value)?;
                     let index = ValueKey(visit_expr(ctx, index)?);
-                    dict.borrow_mut().items.insert(index, value.clone());
+                    dict.borrow_mut().0.insert(index, value.clone());
                     Ok(value)
                 }
                 _ => Err(RuntimeError::Report(
-                    ListTypeError {
+                    IndexTypeError {
                         span: expr.span.into(),
                     }
                     .into(),

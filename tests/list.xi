@@ -5,7 +5,7 @@ for (let i = 0; i < len(a); i = i + 1) {
 }
 
 for (let i = 0; i < len(a); i = i + 1) {
-    a[0] = 0;
+    a[i] = 0;
 }
 
 println("And now with the change");

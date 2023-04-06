@@ -31,6 +31,8 @@ impl Env {
         global.define("print", Value::Function(Rc::new(PrintBuiltin {})));
         global.define("println", Value::Function(Rc::new(PrintlnBuiltin {})));
         global.define("len", Value::Function(Rc::new(LenBuiltin {})));
+        global.define("keys", Value::Function(Rc::new(KeysBuiltin {})));
+        global.define("values", Value::Function(Rc::new(ValuesBuiltin {})));
         Rc::new(RefCell::new(global))
     }
 }
